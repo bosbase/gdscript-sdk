@@ -8,11 +8,9 @@ The Health API provides a simple endpoint to check the health status of the serv
 - No authentication required for basic health check
 - Superuser authentication provides additional diagnostic data
 - Lightweight endpoint for monitoring and health checks
-- Supports both GET and HEAD methods
 
 **Backend Endpoints:**
-- "GET /api/health" - Check health status
-- "HEAD /api/health" - Check health status (HEAD method)
+- `GET /api/health` - Check health status
 
 **Note**: The health endpoint is publicly accessible, but superuser authentication provides additional information.
 
@@ -20,48 +18,53 @@ The Health API provides a simple endpoint to check the health status of the serv
 
 Basic health checks do not require authentication:
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#127.0.0.1:8090\")
+var pb = BosBase.new("http://127.0.0.1:8090")
 
 # Basic health check (no auth required)
-const health = await pb.health.check();
-"`"
+var health = await pb.health.check()
+```
 
 For additional diagnostic information, authenticate as a superuser:
 
-"`"javascript
+```gdscript
 # Authenticate as superuser for extended health data
-await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
-const health = await pb.health.check();
-"`"
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
+
+var health = await pb.health.check()
+```
 
 ## Health Check Response Structure
 
 ### Basic Response (Guest/Regular User)
 
-"`"javascript
+```gdscript
 {
-  "code": 200,
-  "message": "API is healthy.",
-  data}
+    "code": 200,
+    "message": "API is healthy.",
+    "data": {}
 }
-"`"
+```
 
 ### Superuser Response
 
-"`"javascript
+```gdscript
 {
-  "code": 200,
-  "message": "API is healthy.",
-  "data": {
-    "canBackup": boolean,           # Whether backup operations are allowed
-    "realIP": string,               # Real IP address of the client
-    "requireS3": boolean,           # Whether S3 storage is required
-    possibleProxyHeader}
+    "code": 200,
+    "message": "API is healthy.",
+    "data": {
+        "canBackup": true,           # Whether backup operations are allowed
+        "realIP": "192.168.1.100",   # Real IP address of the client
+        "requireS3": false,           # Whether S3 storage is required
+        "possibleProxyHeader": ""     # Proxy header if behind proxy
+    }
 }
-"`"
+```
 
 ## Check Health Status
 
@@ -69,28 +72,40 @@ Returns the health status of the API server.
 
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Simple health check
-const health = await pb.health.check();
+var health = await pb.health.check()
 
-print(health.message); # "API is healthy."
-print(health.code);    # 200
-"`"
+if health is ClientResponseError:
+    push_error("Health check failed: " + health.to_string())
+    return
+
+print(health.message)  # "API is healthy."
+print(health.code)     # 200
+```
 
 ### With Superuser Authentication
 
-"`"javascript
+```gdscript
 # Authenticate as superuser first
-await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
 
 # Get extended health information
-const health = await pb.health.check();
+var health = await pb.health.check()
 
-print(health.data.canBackup);           # true/false
-print(health.data.realIP);              # "192.168.1.100"
-print(health.data.requireS3);           # false
-print(health.data.possibleProxyHeader); # "" or header name
-"`"
+if health is ClientResponseError:
+    push_error("Health check failed: " + health.to_string())
+    return
+
+var data = health.get("data", {})
+print(data.get("canBackup", false))           # true/false
+print(data.get("realIP", ""))                 # "192.168.1.100"
+print(data.get("requireS3", false))           # false
+print(data.get("possibleProxyHeader", ""))    # "" or header name
+```
 
 ## Response Fields
 
@@ -98,363 +113,215 @@ print(health.data.possibleProxyHeader); # "" or header name
 
 | Field | Type | Description |
 |-------|------|-------------|
-| "code" | number | HTTP status code (always 200 for healthy server) |
-| "message" | string | Health status message ("API is healthy.") |
-| "data" | object | Health data (empty for non-superusers, populated for superusers) |
+| `code` | number | HTTP status code (always 200 for healthy server) |
+| `message` | string | Health status message ("API is healthy.") |
+| `data` | object | Health data (empty for non-superusers, populated for superusers) |
 
-### Superuser-Only Fields (in "data")
+### Superuser-Only Fields (in `data`)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| "canBackup" | boolean | "true" if backup/restore operations can be performed, "false" if a backup/restore is currently in progress |
-| "realIP" | string | The real IP address of the client (useful when behind proxies) |
-| "requireS3" | boolean | "true" if S3 storage is required (local fallback disabled), "false" otherwise |
-| "possibleProxyHeader" | string | Detected proxy header name (e.g., "X-Forwarded-For", "CF-Connecting-IP") if the server appears to be behind a reverse proxy, empty string otherwise |
+| `canBackup` | boolean | `true` if backup/restore operations can be performed, `false` if a backup/restore is currently in progress |
+| `realIP` | string | The real IP address of the client (useful when behind proxies) |
+| `requireS3` | boolean | `true` if S3 storage is required (local fallback disabled), `false` otherwise |
+| `possibleProxyHeader` | string | Detected proxy header name (e.g., "X-Forwarded-For", "CF-Connecting-IP") if the server appears to be behind a reverse proxy, empty string otherwise |
 
 ## Use Cases
 
 ### 1. Basic Health Monitoring
 
-"`"javascript
-async function checkServerHealth() {
-  try {
-    const health = await pb.health.check();
+```gdscript
+func check_server_health() -> bool:
+    var health = await pb.health.check()
     
-    if (health.code === 200 && health.message === "API is healthy.") {
-      print('✓ Server is healthy');
-      return true;
-    } else {
-      print('✗ Server health check failed');
-      return false;
-    }
-  } catch (error) {
-    push_error('✗ Health check error:', error);
-    return false;
-  }
-}
+    if health is ClientResponseError:
+        push_error("Health check error: " + health.to_string())
+        return false
+    
+    if health.code == 200 and health.message == "API is healthy.":
+        print("✓ Server is healthy")
+        return true
+    else:
+        print("✗ Server health check failed")
+        return false
 
-# Use in monitoring
-setIntervalfunc(async ():{
-  const isHealthy = await checkServerHealth();
-  if (!isHealthy) {
-    # Alert or take action
-    console.warn('Server health check failed!');
-  }
-}, 60000); # Check every minute
-"`"
+# Use in monitoring (call periodically)
+var is_healthy = await check_server_health()
+if not is_healthy:
+    push_warning("Server health check failed!")
+```
 
 ### 2. Backup Readiness Check
 
-"`"javascript
-async function canPerformBackup() {
-  try {
+```gdscript
+func can_perform_backup() -> bool:
     # Authenticate as superuser
-    await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
+    var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+    if auth is ClientResponseError:
+        push_error("Authentication failed: " + auth.to_string())
+        return false
     
-    const health = await pb.health.check();
+    var health = await pb.health.check()
+    if health is ClientResponseError:
+        push_error("Health check failed: " + health.to_string())
+        return false
     
-    if (health.data?.canBackup === false) {
-      print('⚠️ Backup operation is currently in progress');
-      return false;
-    }
+    var data = health.get("data", {})
+    if data.get("canBackup", false) == false:
+        print("⚠️ Backup operation is currently in progress")
+        return false
     
-    print('✓ Backup operations are allowed');
-    return true;
-  } catch (error) {
-    push_error('Failed to check backup readiness:', error);
-    return false;
-  }
-}
+    print("✓ Backup operations are allowed")
+    return true
 
 # Use before creating backups
-if (await canPerformBackup()) {
-  await pb.backups.create('backup.zip');
-}
-"`"
+if await can_perform_backup():
+    await pb.backups.create("backup.zip")
+```
 
 ### 3. Monitoring Dashboard
 
-"`"javascript
-class HealthMonitor {
-  constructor(pb) {
-    this.pb = pb;
-    this.isSuperuser = false;
-  }
+```gdscript
+class_name HealthMonitor
 
-  async authenticateAsSuperuser(email, password) {
-    try {
-      await this.pb.collection('_superusers').authWithPassword(email, password);
-      this.isSuperuser = true;
-      return true;
-    } catch (error) {
-      push_error('Superuser authentication failed:', error);
-      return false;
+var pb: BosBase
+var is_superuser: bool = false
+
+func authenticate_as_superuser(email: String, password: String) -> bool:
+    var auth = await pb.admins().auth_with_password(email, password)
+    if auth is ClientResponseError:
+        push_error("Superuser authentication failed: " + auth.to_string())
+        return false
+    is_superuser = true
+    return true
+
+func get_health_status() -> Dictionary:
+    var health = await pb.health.check()
+    
+    if health is ClientResponseError:
+        return {
+            "healthy": false,
+            "error": health.to_string(),
+            "timestamp": Time.get_datetime_string_from_system(),
+        }
+    
+    var status = {
+        "healthy": health.code == 200,
+        "message": health.message,
+        "timestamp": Time.get_datetime_string_from_system(),
     }
-  }
-
-  async getHealthStatus() {
-    try {
-      const health = await this.pb.health.check();
-      
-      const status = {
-        healthy: health.code === 200,
-        message: health.message,
-        timestamp: new Date().toISOString(),
-      };
-      
-      if (this.isSuperuser && health.data) {
-        status.diagnostics = {
-          canBackup: health.data.canBackup ?? null,
-          realIP: health.data.realIP ?? null,
-          requireS3: health.data.requireS3 ?? null,
-          behindProxy: health.data.possibleProxyHeader ? true : false,
-          proxyHeader: health.data.possibleProxyHeader || null,
-        };
-      }
-      
-      return status;
-    } catch (error) {
-      return {
-        healthy: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      };
-    }
-  }
-
-  async startMonitoring(intervalMs = 60000) {
-    this.intervalId = setIntervalfunc(async ():{
-      const status = await this.getHealthStatus();
-      print('Health Status:', status);
-      
-      if (!status.healthy) {
-        # Trigger alerts or actions
-        this.onHealthIssue(status);
-      }
-    }, intervalMs);
-  }
-
-  stopMonitoring() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-  }
-
-  onHealthIssue(status) {
-    push_error('Health issue detected:', status);
-    # Implement alerting logic here
-  }
-}
+    
+    if is_superuser and health.has("data"):
+        var data = health.data
+        status["diagnostics"] = {
+            "canBackup": data.get("canBackup", null),
+            "realIP": data.get("realIP", null),
+            "requireS3": data.get("requireS3", null),
+            "behindProxy": data.get("possibleProxyHeader", "") != "",
+            "proxyHeader": data.get("possibleProxyHeader", null),
+        }
+    
+    return status
 
 # Usage
-const monitor = new HealthMonitor(pb);
-await monitor.authenticateAsSuperuser('admin@example.com', 'password');
-await monitor.startMonitoring(30000); # Check every 30 seconds
-"`"
+var monitor = HealthMonitor.new()
+monitor.pb = pb
+await monitor.authenticate_as_superuser("admin@example.com", "password")
+var status = await monitor.get_health_status()
+print("Health Status: ", status)
+```
 
-### 4. Load Balancer Health Check
+### 4. Pre-Flight Checks
 
-"`"javascript
-# Simple health check for load balancers
-async function simpleHealthCheck() {
-  try {
-    const health = await pb.health.check();
-    return health.code === 200;
-  } catch (error) {
-    return false;
-  }
-}
-
-# Use in Express.js route for load balancer
-app.getfunc('/health', async (req, res):{
-  const isHealthy = await simpleHealthCheck();
-  if (isHealthy) {
-    res.status(200).json({ status});
-  } else {
-    res.status(503).json({ status});
-  }
-});
-"`"
-
-### 5. Proxy Detection
-
-"`"javascript
-async function checkProxySetup() {
-  await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
-  
-  const health = await pb.health.check();
-  const proxyHeader = health.data?.possibleProxyHeader;
-  
-  if (proxyHeader) {
-    print("⚠️ Server appears to be behind a reverse proxy");
-    print("   Detected proxy header}");
-    print("   Real IP: ${health.data.realIP}");
-    
-    # Provide guidance on trusted proxy configuration
-    print("   Ensure TrustedProxy settings are configured correctly in admin panel");
-  } else {
-    print('✓ No reverse proxy detected (or properly configured)');
-  }
-  
-  return {
-    behindProxy: !!proxyHeader,
-    proxyHeader: proxyHeader || null,
-    realIP: health.data?.realIP || null,
-  };
-}
-"`"
-
-### 6. Pre-Flight Checks
-
-"`"javascript
-async function preFlightCheck() {
-  const checks = {
-    serverHealthy: false,
-    canBackup: false,
-    storageConfigured: false,
-    issues: [],
-  };
-  
-  try {
-    # Basic health check
-    const health = await pb.health.check();
-    checks.serverHealthy = health.code === 200;
-    
-    if (!checks.serverHealthy) {
-      checks.issues.push('Server health check failed');
-      return checks;
+```gdscript
+func pre_flight_check() -> Dictionary:
+    var checks = {
+        "serverHealthy": false,
+        "canBackup": false,
+        "storageConfigured": false,
+        "issues": [],
     }
+    
+    # Basic health check
+    var health = await pb.health.check()
+    if health is ClientResponseError:
+        checks.issues.append("Health check error: " + health.to_string())
+        return checks
+    
+    checks.serverHealthy = health.code == 200
+    
+    if not checks.serverHealthy:
+        checks.issues.append("Server health check failed")
+        return checks
     
     # Authenticate as superuser for extended checks
-    try {
-      await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
-      
-      const detailedHealth = await pb.health.check();
-      
-      checks.canBackup = detailedHealth.data?.canBackup === true;
-      checks.storageConfigured = !detailedHealth.data?.requireS3 || 
-                                  detailedHealth.data?.requireS3 === false;
-      
-      if (!checks.canBackup) {
-        checks.issues.push('Backup operations are currently unavailable');
-      }
-      
-      if (detailedHealth.data?.requireS3) {
-        checks.issues.push('S3 storage is required but may not be configured');
-      }
-    } catch (authError) {
-      checks.issues.push('Superuser authentication failed - limited diagnostics available');
-    }
-  } catch (error) {
-    checks.issues.push("Health check error}");
-  }
-  
-  return checks;
-}
+    var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+    if auth is ClientResponseError:
+        checks.issues.append("Superuser authentication failed - limited diagnostics available")
+        return checks
+    
+    var detailed_health = await pb.health.check()
+    if detailed_health is ClientResponseError:
+        checks.issues.append("Detailed health check failed")
+        return checks
+    
+    var data = detailed_health.get("data", {})
+    checks.canBackup = data.get("canBackup", false) == true
+    checks.storageConfigured = not data.get("requireS3", false)
+    
+    if not checks.canBackup:
+        checks.issues.append("Backup operations are currently unavailable")
+    
+    if data.get("requireS3", false):
+        checks.issues.append("S3 storage is required but may not be configured")
+    
+    return checks
 
 # Use before critical operations
-const checks = await preFlightCheck();
-if (checks.issues.length > 0) {
-  console.warn('Pre-flight check issues:', checks.issues);
-  # Handle issues before proceeding
-}
-"`"
-
-### 7. Automated Backup Scheduler
-
-"`"javascript
-class BackupScheduler {
-  constructor(pb) {
-    this.pb = pb;
-  }
-
-  async waitForBackupAvailability(maxWaitMs = 300000) {
-    const startTime = Date.now();
-    const checkInterval = 5000; # Check every 5 seconds
-    
-    while (Date.now() - startTime < maxWaitMs) {
-      try {
-        const health = await this.pb.health.check();
-        
-        if (health.data?.canBackup === true) {
-          return true;
-        }
-        
-        print('Backup in progress, waiting...');
-        await new Promise(resolve => setTimeout(resolve, checkInterval));
-      } catch (error) {
-        push_error('Health check failed:', error);
-        return false;
-      }
-    }
-    
-    push_error('Timeout waiting for backup availability');
-    return false;
-  }
-
-  async scheduleBackup(backupName) {
-    # Wait for backup operations to be available
-    const isAvailable = await this.waitForBackupAvailability();
-    
-    if (!isAvailable) {
-      throw new Error('Backup operations are not available');
-    }
-    
-    # Create the backup
-    await this.pb.backups.create(backupName);
-    print("Backup "${backupName}" created");
-  }
-}
-
-# Usage
-const scheduler = new BackupScheduler(pb);
-await scheduler.scheduleBackup('scheduled_backup.zip');
-"`"
+var checks = await pre_flight_check()
+if checks.issues.size() > 0:
+    push_warning("Pre-flight check issues: ", checks.issues)
+```
 
 ## Error Handling
 
-"`"javascript
-async function safeHealthCheck() {
-  try {
-    const health = await pb.health.check();
+```gdscript
+func safe_health_check() -> Dictionary:
+    var health = await pb.health.check()
+    
+    if health is ClientResponseError:
+        # Network errors, server down, etc.
+        return {
+            "success": false,
+            "error": health.to_string(),
+            "code": health.status if health.has("status") else 0,
+        }
+    
     return {
-      success: true,
-      data: health,
-    };
-  } catch (error) {
-    # Network errors, server down, etc.
-    return {
-      success: false,
-      error: error.message,
-      code: error.status || 0,
-    };
-  }
-}
+        "success": true,
+        "data": health,
+    }
 
 # Handle different error scenarios
-const result = await safeHealthCheck();
-if (!result.success) {
-  if (result.code === 0) {
-    push_error('Network error or server unreachable');
-  } else {
-    push_error("Server returned error}");
-  }
-}
-"`"
+var result = await safe_health_check()
+if not result.success:
+    if result.code == 0:
+        push_error("Network error or server unreachable")
+    else:
+        push_error("Server returned error: ", result.code)
+```
 
 ## Best Practices
 
 1. **Monitoring**: Use health checks for regular monitoring (e.g., every 30-60 seconds)
-2. **Load Balancers**: Configure load balancers to use the health endpoint for health checks
-3. **Pre-flight Checks**: Check "canBackup" before initiating backup operations
-4. **Error Handling**: Always handle errors gracefully as the server may be down
-5. **Rate Limiting**: Don't poll the health endpoint too frequently (avoid spamming)
-6. **Caching**: Consider caching health check results for a few seconds to reduce load
-7. **Logging**: Log health check results for troubleshooting and monitoring
-8. **Alerting**: Set up alerts for consecutive health check failures
-9. **Superuser Auth**: Only authenticate as superuser when you need diagnostic information
-10. **Proxy Configuration**: Use "possibleProxyHeader" to detect and configure reverse proxy settings
+2. **Pre-flight Checks**: Check `canBackup` before initiating backup operations
+3. **Error Handling**: Always handle errors gracefully as the server may be down
+4. **Rate Limiting**: Don't poll the health endpoint too frequently (avoid spamming)
+5. **Caching**: Consider caching health check results for a few seconds to reduce load
+6. **Logging**: Log health check results for troubleshooting and monitoring
+7. **Alerting**: Set up alerts for consecutive health check failures
+8. **Superuser Auth**: Only authenticate as superuser when you need diagnostic information
+9. **Proxy Configuration**: Use `possibleProxyHeader` to detect and configure reverse proxy settings
 
 ## Response Codes
 
@@ -470,23 +337,7 @@ if (!result.success) {
 - **Superuser Required**: Extended diagnostics require superuser authentication
 - **No Historical Data**: Only returns current status, no historical health data
 
-## Head Method Support
-
-The health endpoint also supports the HEAD method for lightweight checks:
-
-"`"javascript
-# Using HEAD method (if supported by your HTTP client)
-const response = await fetch('http:#127.0.0.1:8090/api/health', {
-  method: 'HEAD',
-});
-
-if (response.ok) {
-  print('Server is healthy');
-}
-"`"
-
 ## Related Documentation
 
-- [Backups API](./BACKUPS_API.md) - Using "canBackup` to check backup readiness
+- [Backups API](./BACKUPS_API.md) - Using `canBackup` to check backup readiness
 - [Authentication](./AUTHENTICATION.md) - Superuser authentication
-- [Settings API](./SETTINGS_API.md) - Configuring trusted proxy settings

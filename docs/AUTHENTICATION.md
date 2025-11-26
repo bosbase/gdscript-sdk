@@ -2,11 +2,11 @@
 
 ## Overview
 
-Authentication in BosBase is stateless and token-based. A client is considered authenticated as long as it sends a valid "Authorization: YOUR_AUTH_TOKEN" header with requests.
+Authentication in BosBase is stateless and token-based. A client is considered authenticated as long as it sends a valid `Authorization: YOUR_AUTH_TOKEN` header with requests.
 
 **Key Points:**
 - **No sessions**: BosBase APIs are fully stateless (tokens are not stored in the database)
-- **No logout endpoint**: To "logout", simply clear the token from your local state ("pb.authStore.clear()")
+- **No logout endpoint**: To "logout", simply clear the token from your local state (`pb.auth_store.clear()`)
 - **Token generation**: Auth tokens are generated through auth collection Web APIs or programmatically
 - **Admin users**: "_superusers" collection works like regular auth collections but with full access (API rules are ignored)
 - **OAuth2 limitation**: OAuth2 is not supported for "_superusers" collection
@@ -43,7 +43,7 @@ pb.auth_store.clear()
 
 Authenticate using email/username and password. The identity field can be configured in the collection options (default is email).
 
-**Backend Endpoint:** \"POST /api/collections/{collection}/auth-with-password\"
+**Backend Endpoint:** `POST /api/collections/{collection}/auth-with-password`
 
 ### Basic Usage
 
@@ -58,6 +58,11 @@ var auth_data = await pb.collection("users").auth_with_password(
     "password123"
 )
 
+# Check for errors
+if auth_data is ClientResponseError:
+    push_error("Authentication failed: " + auth_data.to_string())
+    return
+
 # Auth data is automatically stored in pb.auth_store
 print(pb.auth_store.is_valid)  # true
 print(pb.auth_store.token)     # JWT token
@@ -66,168 +71,217 @@ print(pb.auth_store.record.id) # user record ID
 
 ### Response Format
 
-\"\"\"javascript
+```gdscript
 {
-  token: "eyJhbGciOiJIUzI1NiJ9...",
-  record: {
-    id: "record_id",
-    email: "test@example.com",
+  "token": "eyJhbGciOiJIUzI1NiJ9...",
+  "record": {
+    "id": "record_id",
+    "email": "test@example.com",
     # ... other user fields
   }
 }
-\"\"\"
+```
 
 ### Error Handling with MFA
 
-\"\"\"javascript
-try {
-  await pb.collection('users').authWithPassword('test@example.com', 'pass123');
-} catch (err) {
-  # Check for MFA requirement
-  if (err.response?.mfaId) {
-    const mfaId = err.response.mfaId;
-    # Handle MFA flow (see Multi-factor Authentication section)
-  } else {
-    push_error('Authentication failed:', err);
-  }
-}
-\"\"\"
+```gdscript
+var auth_result = await pb.collection("users").auth_with_password("test@example.com", "pass123")
+
+if auth_result is ClientResponseError:
+    # Check for MFA requirement
+    var response_data = auth_result.data
+    if response_data.has("mfaId"):
+        var mfa_id = response_data["mfaId"]
+        # Handle MFA flow (see Multi-factor Authentication section)
+        await handle_mfa("test@example.com", mfa_id)
+    else:
+        push_error("Authentication failed: " + auth_result.to_string())
+```
 
 ## OTP Authentication
 
 One-time password authentication via email.
 
 **Backend Endpoints:**
-- \"POST /api/collections/{collection}/request-otp\" - Request OTP
-- \"POST /api/collections/{collection}/auth-with-otp\" - Authenticate with OTP
+- `POST /api/collections/{collection}/request-otp` - Request OTP
+- `POST /api/collections/{collection}/auth-with-otp` - Authenticate with OTP
 
 ### Request OTP
 
-\"\"\"javascript
+```gdscript
 # Send OTP to user's email
-const result = await pb.collection('users').requestOTP('test@example.com');
-print(result.otpId);  # OTP ID to use in authWithOTP
-\"\"\"
+var result = await pb.collection("users").request_otp("test@example.com")
+
+if result is ClientResponseError:
+    push_error("Failed to request OTP: " + result.to_string())
+    return
+
+print(result.otpId)  # OTP ID to use in auth_with_otp
+```
 
 ### Authenticate with OTP
 
-\"\"\"javascript
+```gdscript
 # Step 1: Request OTP
-const result = await pb.collection('users').requestOTP('test@example.com');
+var result = await pb.collection("users").request_otp("test@example.com")
+if result is ClientResponseError:
+    push_error("Failed to request OTP: " + result.to_string())
+    return
 
 # Step 2: User enters OTP from email
-const authData = await pb.collection('users').authWithOTP(
-  result.otpId,
-  '123456'  # OTP code from email
-);
-\"\"\"
+var otp_code = "123456"  # Get from user input
+
+var auth_data = await pb.collection("users").auth_with_otp(
+    result.otpId,
+    otp_code
+)
+
+if auth_data is ClientResponseError:
+    push_error("OTP authentication failed: " + auth_data.to_string())
+else:
+    print("Successfully authenticated with OTP")
+```
 
 ## OAuth2 Authentication
 
-**Backend Endpoint:** \"POST /api/collections/{collection}/auth-with-oauth2\"
-
-### All-in-One Method (Recommended)
-
-\"\"\"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-
-var pb = BosBase.new(\"https:#bosbase.io\")
-
-# Opens popup window with OAuth2 provider page
-const authData = await pb.collection('users').authWithOAuth2({
-  provider});
-
-print(pb.authStore.token);
-print(pb.authStore.record);
-\"\"\"
+**Backend Endpoint:** `POST /api/collections/{collection}/auth-with-oauth2`
 
 ### Manual Code Exchange
 
-\"\"\"javascript
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
+
+var pb = BosBase.new("https://bosbase.io")
+
 # Get auth methods
-const authMethods = await pb.collection('users').listAuthMethods();
-const provider = authMethods.oauth2.providers.find(p => p.name === 'google');
+var auth_methods = await pb.collection("users").list_auth_methods()
+if auth_methods is ClientResponseError:
+    push_error("Failed to get auth methods: " + auth_methods.to_string())
+    return
+
+# Find provider (e.g., google)
+var providers = auth_methods.get("oauth2", {}).get("providers", [])
+var provider = null
+for p in providers:
+    if p.get("name") == "google":
+        provider = p
+        break
+
+if provider == null:
+    push_error("Google OAuth2 provider not found")
+    return
 
 # Exchange code for token (after OAuth2 redirect)
-const authData = await pb.collection('users').authWithOAuth2Code(
-  provider.name,
-  code,
-  provider.codeVerifier,
-  redirectUrl
-);
-\"\"\"
+var auth_data = await pb.collection("users").auth_with_oauth2_code(
+    provider.name,
+    code,  # OAuth2 code from redirect
+    provider.codeVerifier,
+    redirect_url
+)
+
+if auth_data is ClientResponseError:
+    push_error("OAuth2 authentication failed: " + auth_data.to_string())
+else:
+    print("OAuth2 authentication successful")
+```
 
 ## Multi-Factor Authentication (MFA)
 
 Requires 2 different auth methods.
 
-\"\"\"javascript
-let mfaId;
+```gdscript
+var mfa_id: String = ""
 
-try {
-  # First auth method (password)
-  await pb.collection('users').authWithPassword('test@example.com', 'pass123');
-} catch (err) {
-  if (err.response?.mfaId) {
-    mfaId = err.response.mfaId;
-    
-    # Second auth method (OTP)
-    const otpResult = await pb.collection('users').requestOTP('test@example.com');
-    await pb.collection('users').authWithOTP(
-      otpResult.otpId,
-      '123456',
-      { mfaId}
-    );
-  }
-}
-\"\"\"
+# First auth method (password)
+var auth_result = await pb.collection("users").auth_with_password("test@example.com", "pass123")
+
+if auth_result is ClientResponseError:
+    var response_data = auth_result.data
+    if response_data.has("mfaId"):
+        mfa_id = response_data["mfaId"]
+        
+        # Second auth method (OTP)
+        var otp_result = await pb.collection("users").request_otp("test@example.com")
+        if otp_result is ClientResponseError:
+            push_error("Failed to request OTP: " + otp_result.to_string())
+            return
+        
+        var otp_code = "123456"  # Get from user
+        
+        var mfa_auth = await pb.collection("users").auth_with_otp(
+            otp_result.otpId,
+            otp_code,
+            {},
+            {},
+            {},
+            {},
+            mfa_id  # Pass MFA ID
+        )
+        
+        if mfa_auth is ClientResponseError:
+            push_error("MFA authentication failed: " + mfa_auth.to_string())
+        else:
+            print("MFA authentication successful")
+```
 
 ## User Impersonation
 
 Superusers can impersonate other users.
 
-**Backend Endpoint:** \"POST /api/collections/{collection}/impersonate/{id}\"
+**Backend Endpoint:** `POST /api/collections/{collection}/impersonate/{id}`
 
-\"\"\"javascript
+```gdscript
 # Authenticate as superuser
-await pb.admins.authWithPassword('admin@example.com', 'adminpass');
+var admin_auth = await pb.admins().auth_with_password("admin@example.com", "adminpass")
+if admin_auth is ClientResponseError:
+    push_error("Admin authentication failed: " + admin_auth.to_string())
+    return
 
 # Impersonate a user
-const impersonateClient = await pb.collection('users').impersonate(
-  'USER_RECORD_ID',
-  3600  # Optional: token duration in seconds
-);
+var impersonate_client = await pb.collection("users").impersonate(
+    "USER_RECORD_ID",
+    3600  # Optional: token duration in seconds
+)
 
-# Use impersonate client
-const data = await impersonateClient.collection('posts').getFullList();
-\"\"\"
+if impersonate_client is ClientResponseError:
+    push_error("Impersonation failed: " + impersonate_client.to_string())
+    return
+
+# Use impersonate client (returns a new BosBase client instance)
+var data = await impersonate_client.collection("posts").get_full_list()
+```
 
 ## Auth Token Verification
 
-Verify token by calling \"authRefresh()\".
+Verify token by calling `auth_refresh()`.
 
-**Backend Endpoint:** \"POST /api/collections/{collection}/auth-refresh\"
+**Backend Endpoint:** `POST /api/collections/{collection}/auth-refresh`
 
-\"\"\"javascript
-try {
-  const authData = await pb.collection('users').authRefresh();
-  print('Token is valid');
-} catch (err) {
-  push_error('Token verification failed:', err);
-  pb.authStore.clear();
-}
-\"\"\"
+```gdscript
+var refresh_result = await pb.collection("users").auth_refresh()
+
+if refresh_result is ClientResponseError:
+    push_error("Token verification failed: " + refresh_result.to_string())
+    pb.auth_store.clear()
+else:
+    print("Token is valid")
+```
 
 ## List Available Auth Methods
 
-**Backend Endpoint:** \"GET /api/collections/{collection}/auth-methods\"
+**Backend Endpoint:** `GET /api/collections/{collection}/auth-methods`
 
-\"\"\"javascript
-const authMethods = await pb.collection('users').listAuthMethods();
-print(authMethods.password.enabled);
-print(authMethods.oauth2.providers);
-print(authMethods.mfa.enabled);
-\"\"\"
+```gdscript
+var auth_methods = await pb.collection("users").list_auth_methods()
+
+if auth_methods is ClientResponseError:
+    push_error("Failed to get auth methods: " + auth_methods.to_string())
+    return
+
+print(auth_methods.password.enabled)
+print(auth_methods.oauth2.providers)
+print(auth_methods.mfa.enabled)
+```
 
 ## Complete Examples
 
@@ -247,371 +301,153 @@ See the full documentation for detailed examples of:
 
 ### Example 1: Complete Authentication Flow with Error Handling
 
-\"\"\"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
-async function authenticateUser(email, password) {
-  try {
+func authenticate_user(email: String, password: String) -> Dictionary:
     # Try password authentication
-    const authData = await pb.collection('users').authWithPassword(email, password);
+    var auth_result = await pb.collection("users").auth_with_password(email, password)
     
-    print('Successfully authenticated:', authData.record.email);
-    return authData;
+    if auth_result is ClientResponseError:
+        # Check if MFA is required
+        var response_data = auth_result.data
+        if auth_result.status == 401 and response_data.has("mfaId"):
+            print("MFA required, proceeding with second factor...")
+            return await handle_mfa(email, response_data["mfaId"])
+        
+        # Handle other errors
+        if auth_result.status == 400:
+            push_error("Invalid credentials")
+            return {}
+        elif auth_result.status == 403:
+            push_error("Password authentication is not enabled for this collection")
+            return {}
+        else:
+            push_error("Authentication failed: " + auth_result.to_string())
+            return {}
     
-  } catch (err) {
-    # Check if MFA is required
-    if (err.status === 401 && err.response?.mfaId) {
-      print('MFA required, proceeding with second factor...');
-      return await handleMFA(email, err.response.mfaId);
-    }
-    
-    # Handle other errors
-    if (err.status === 400) {
-      throw new Error('Invalid credentials');
-    } else if (err.status === 403) {
-      throw new Error('Password authentication is not enabled for this collection');
-    } else {
-      throw err;
-    }
-  }
-}
+    print("Successfully authenticated: ", auth_result.record.email)
+    return auth_result
 
-async function handleMFA(email, mfaId) {
-  # Request OTP for second factor
-  const otpResult = await pb.collection('users').requestOTP(email);
-  
-  # In a real app, show a modal/form for the user to enter OTP
-  # For this example, we'll simulate getting the OTP
-  const userEnteredOTP = await getUserOTPInput(); # Your UI function
-  
-  try {
+func handle_mfa(email: String, mfa_id: String) -> Dictionary:
+    # Request OTP for second factor
+    var otp_result = await pb.collection("users").request_otp(email)
+    if otp_result is ClientResponseError:
+        push_error("Failed to request OTP: " + otp_result.to_string())
+        return {}
+    
+    # In a real app, show a modal/form for the user to enter OTP
+    # For this example, we'll simulate getting the OTP
+    var user_entered_otp = await get_user_otp_input()  # Your UI function
+    
     # Authenticate with OTP and MFA ID
-    const authData = await pb.collection('users').authWithOTP(
-      otpResult.otpId,
-      userEnteredOTP,
-      { mfaId}
-    );
+    var mfa_auth = await pb.collection("users").auth_with_otp(
+        otp_result.otpId,
+        user_entered_otp,
+        {},
+        {},
+        {},
+        {},
+        mfa_id  # Pass MFA ID
+    )
     
-    print('MFA authentication successful');
-    return authData;
-  } catch (err) {
-    if (err.status === 429) {
-      throw new Error('Too many OTP attempts, please request a new OTP');
-    }
-    throw new Error('Invalid OTP code');
-  }
-}
+    if mfa_auth is ClientResponseError:
+        if mfa_auth.status == 429:
+            push_error("Too many OTP attempts, please request a new OTP")
+        else:
+            push_error("Invalid OTP code")
+        return {}
+    
+    print("MFA authentication successful")
+    return mfa_auth
 
 # Usage
-authenticateUser('user@example.com', 'password123')
-  .thenfunc(():{
-    print('User is authenticated:', pb.authStore.record);
-  })
-  .catch(err => {
-    push_error('Authentication failed:', err.message);
-  });
-\"\"\"
+var result = await authenticate_user("user@example.com", "password123")
+if not result.is_empty():
+    print("User is authenticated: ", pb.auth_store.record)
+```
 
-### Example 2: OAuth2 Integration with Popup
+### Example 2: Token Management and Refresh
 
-\"\"\"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"https:#your-domain.com\")
+var pb = BosBase.new("http://localhost:8090")
 
-# Setup OAuth2 login button
-document.getElementById('google-login').addEventListenerfunc('click', async ():{
-  try {
-    # Check available providers first
-    const authMethods = await pb.collection('users').listAuthMethods();
-    
-    if (!authMethods.oauth2?.enabled) {
-      alert('OAuth2 is not enabled for this collection');
-      return;
-    }
-    
-    const googleProvider = authMethods.oauth2.providers.find(p => p.name === 'google');
-    if (!googleProvider) {
-      alert('Google OAuth2 is not configured');
-      return;
-    }
-    
-    # Authenticate with Google (opens popup)
-    const authData = await pb.collection('users').authWithOAuth2({
-      provider});
-    
-    # Check if this is a new user
-    if (authData.meta?.isNew) {
-      print('Welcome new user!', authData.record);
-      # Redirect to onboarding
-      window.location.href = '/onboarding';
-    } else {
-      print('Welcome back!', authData.record);
-      # Redirect to dashboard
-      window.location.href = '/dashboard';
-    }
-    
-  } catch (err) {
-    if (err.status === 403) {
-      alert('OAuth2 authentication is not enabled');
-    } else {
-      push_error('OAuth2 authentication failed:', err);
-      alert('Login failed. Please try again.');
-    }
-  }
-});
-\"\"\"
-
-### Example 3: Token Management and Refresh
-
-> **BosBase note:** Calls to \"pb.collection("users").authWithPassword()\" now return static, non-expiring tokens. Environment variables can no longer shorten their lifetime, so the refresh logic below is only required for custom auth collections, impersonation flows, or any token you mint manually.
-
-\"\"\"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-
-var pb = BosBase.new(\"http:#localhost:8090\")
-
-# Check if user is already authenticated
-function checkAuth() {
-  if (pb.authStore.isValid) {
-    print('User is authenticated:', pb.authStore.record.email);
-    
-    # Verify token is still valid and refresh if needed
-    return pb.collection('users').authRefresh()
-      .thenfunc(():{
-        print('Token refreshed successfully');
-        return true;
-      })
-      .catch(err => {
-        print('Token expired or invalid, clearing auth');
-        pb.authStore.clear();
-        return false;
-      });
-  }
-  return Promise.resolve(false);
-}
-
-# Auto-refresh token before expiration
-async function setupAutoRefresh() {
-  if (!pb.authStore.isValid) return;
-  
-  # Calculate time until token expiration (JWT tokens have exp claim)
-  const token = pb.authStore.token;
-  const payload = JSON.parse(atob(token.split('.')[1]));
-  const expiresAt = payload.exp * 1000; # Convert to milliseconds
-  const now = Date.now();
-  const timeUntilExpiry = expiresAt - now;
-  
-  # Refresh 5 minutes before expiration
-  const refreshTime = Math.max(0, timeUntilExpiry - 5 * 60 * 1000);
-  
-  setTimeoutfunc(async ():{
-    try {
-      await pb.collection('users').authRefresh();
-      print('Token auto-refreshed');
-      setupAutoRefresh(); # Schedule next refresh
-    } catch (err) {
-      push_error('Auto-refresh failed:', err);
-      pb.authStore.clear();
-    }
-  }, refreshTime);
-}
+func check_auth() -> bool:
+    if pb.auth_store.is_valid:
+        print("User is authenticated: ", pb.auth_store.record.email)
+        
+        # Verify token is still valid and refresh if needed
+        var refresh_result = await pb.collection("users").auth_refresh()
+        if refresh_result is ClientResponseError:
+            print("Token expired or invalid, clearing auth")
+            pb.auth_store.clear()
+            return false
+        
+        print("Token refreshed successfully")
+        return true
+    return false
 
 # Usage
-checkAuth().then(isAuthenticated => {
-  if (!isAuthenticated) {
+var is_authenticated = await check_auth()
+if not is_authenticated:
     # Redirect to login
-    window.location.href = '/login';
-  } else {
-    setupAutoRefresh();
-  }
-});
-\"\"\"
+    print("User not authenticated, redirecting to login...")
+```
 
-### Example 4: Admin Impersonation for Support
+### Example 3: Admin Impersonation for Support
 
-\"\"\"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
-async function impersonateUserForSupport(userId) {
-  # Authenticate as admin
-  await pb.admins.authWithPassword('admin@example.com', 'adminpassword');
-  
-  # Impersonate the user (1 hour token)
-  const userClient = await pb.collection('users').impersonate(userId, 3600);
-  
-  print('Impersonating "user":', userClient.authStore.record.email);
-  
-  # Use the impersonated client to test user experience
-  const userRecords = await userClient.collection('posts').getFullList();
-  print('User can see', userRecords.length, 'posts');
-  
-  # Check what the user sees
-  const userView = await userClient.collection('posts').getList(1, 10, {
-    filter});
-  
-  return {
-    "canAccess": userView.items.length,
-    totalPosts};
-}
+func impersonate_user_for_support(user_id: String) -> Dictionary:
+    # Authenticate as admin
+    var admin_auth = await pb.admins().auth_with_password("admin@example.com", "adminpassword")
+    if admin_auth is ClientResponseError:
+        push_error("Admin authentication failed: " + admin_auth.to_string())
+        return {}
+    
+    # Impersonate the user (1 hour token)
+    var user_client = await pb.collection("users").impersonate(user_id, 3600)
+    
+    if user_client is ClientResponseError:
+        push_error("Impersonation failed: " + user_client.to_string())
+        return {}
+    
+    print("Impersonating user: ", user_client.auth_store.record.email)
+    
+    # Use the impersonated client to test user experience
+    var user_records = await user_client.collection("posts").get_full_list()
+    if user_records is ClientResponseError:
+        push_error("Failed to get user records: " + user_records.to_string())
+        return {}
+    
+    print("User can see ", user_records.size(), " posts")
+    
+    # Check what the user sees
+    var user_view = await user_client.collection("posts").get_list(1, 10, {
+        "filter": "published = true"
+    })
+    
+    if user_view is ClientResponseError:
+        push_error("Failed to get user view: " + user_view.to_string())
+        return {}
+    
+    return {
+        "canAccess": user_view.items.size(),
+        "totalPosts": user_records.size()
+    }
 
 # Usage in support dashboard
-impersonateUserForSupport('user_record_id')
-  .then(result => {
-    print('User access check:', result);
-  })
-  .catch(err => {
-    push_error('Impersonation failed:', err);
-  });
-\"\"\"
-
-### Example 5: API Key Generation for Server-to-Server
-
-\"\"\"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-
-var pb = BosBase.new(\"https:#api.example.com\")
-
-async function generateAPIKey(adminEmail, adminPassword) {
-  # Authenticate as admin
-  await pb.admins.authWithPassword(adminEmail, adminPassword);
-  
-  # Get superuser ID
-  const adminRecord = pb.authStore.record;
-  
-  # Generate impersonation token (1 year duration for long-lived API key)
-  const apiClient = await pb.admins.impersonate(adminRecord.id, 31536000);
-  
-  const apiKey = {
-    "token": apiClient.authStore.token,
-    "expiresAt": new Date(Date.now() + 31536000 * 1000).toISOString(),
-    generatedAt};
-  
-  # Store API key securely (e.g., in environment variables, secret manager)
-  print('API Key generated (store securely):', apiKey.token.substring(0, 20) + '...');
-  
-  return apiKey;
-}
-
-# Usage in server environment
-generateAPIKey('admin@example.com', 'securepassword')
-  .then(apiKey => {
-    # Store in your server configuration
-    process.env.BOSBASE_API_KEY = apiKey.token;
-  })
-  .catch(err => {
-    push_error('Failed to generate API key:', err);
-  });
-
-# Using the API key in another service
-const serviceClient = new BosBase('https:#api.example.com');
-serviceClient.authStore.save(process.env.BOSBASE_API_KEY, {
-  "id": 'superuser_id',
-  email});
-
-# Make authenticated requests
-const data = await serviceClient.collection('records').getFullList();
-\"\"\"
-
-### Example 6: OAuth2 Manual Flow (Advanced)
-
-\"\"\"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-
-var pb = BosBase.new(\"https:#your-domain.com\")
-
-# Step 1: Get available OAuth2 providers
-async function getOAuth2Providers() {
-  const authMethods = await pb.collection('users').listAuthMethods();
-  return authMethods.oauth2?.providers || [];
-}
-
-# Step 2: Initiate OAuth2 flow
-async function initiateOAuth2Login(providerName) {
-  const providers = await getOAuth2Providers();
-  const provider = providers.find(p => p.name === providerName);
-  
-  if (!provider) {
-    throw new Error("Provider ${providerName} not available");
-  }
-  
-  # Store provider info for verification
-  sessionStorage.setItem('oauth2_provider', JSON.stringify(provider));
-  
-  # Redirect to provider's auth URL
-  const redirectUrl = window.location.origin + '/oauth2-callback';
-  window.location.href = provider.authURL + '?redirect_url=' + encodeURIComponent(redirectUrl);
-}
-
-# Step 3: Handle OAuth2 callback
-async function handleOAuth2Callback() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get('code');
-  const state = urlParams.get('state');
-  const error = urlParams.get('error');
-  
-  if (error) {
-    push_error('OAuth2 error:', error);
-    return;
-  }
-  
-  if (!code || !state) {
-    push_error('Missing OAuth2 parameters');
-    return;
-  }
-  
-  # Retrieve stored provider info
-  const providerStr = sessionStorage.getItem('oauth2_provider');
-  if (!providerStr) {
-    push_error('Provider info not found');
-    return;
-  }
-  
-  const provider = JSON.parse(providerStr);
-  
-  # Verify state parameter
-  if (provider.state !== state) {
-    push_error('State parameter mismatch - possible CSRF attack');
-    return;
-  }
-  
-  # Exchange code for token
-  const redirectUrl = window.location.origin + '/oauth2-callback';
-  
-  try {
-    const authData = await pb.collection('users').authWithOAuth2Code(
-      provider.name,
-      code,
-      provider.codeVerifier,
-      redirectUrl,
-      {
-        # "Optional": additional data for new users
-        emailVisibility}
-    );
-    
-    print('OAuth2 authentication successful:', authData.record);
-    
-    # Clear stored provider info
-    sessionStorage.removeItem('oauth2_provider');
-    
-    # Redirect to app
-    window.location.href = '/dashboard';
-    
-  } catch (err) {
-    push_error('OAuth2 code exchange failed:', err);
-    alert('Authentication failed. Please try again.');
-  }
-}
-
-# Usage: Call handleOAuth2Callback() on the callback page
-# if (window.location.pathname === '/oauth2-callback') {
-#   handleOAuth2Callback();
-# }
-\"\"\"
+var result = await impersonate_user_for_support("user_record_id")
+if not result.is_empty():
+    print("User access check: ", result)
+```
 
 ## Best Practices
 
@@ -627,36 +463,26 @@ async function handleOAuth2Callback() {
 ## Troubleshooting
 
 ### Token Expired
+
 If you get 401 errors, check if the token has expired:
-\"\"\"javascript
-try {
-  await pb.collection('users').authRefresh();
-} catch (err) {
-  # Token expired, require re-authentication
-  pb.authStore.clear();
-  # Redirect to login
-}
-\"\"\"
+
+```gdscript
+var refresh_result = await pb.collection("users").auth_refresh()
+
+if refresh_result is ClientResponseError:
+    # Token expired, require re-authentication
+    pb.auth_store.clear()
+    # Redirect to login
+```
 
 ### MFA Required
+
 If authentication returns 401 with mfaId:
-\"\"\"javascript
-if (err.status === 401 && err.response?.mfaId) {
-  # Proceed with second authentication factor
-}
-\"\"\"
 
-### OAuth2 Popup Blocked
-Ensure OAuth2 is triggered from a user interaction (click event), not from async code:
-\"\"\"javascript
-# Good - direct click handler
-button.addEventListenerfunc('click', ():{
-  pb.collection('users').authWithOAuth2({ provider});
-});
-
-# Bad - async in click handler (may be blocked in Safari)
-button.addEventListenerfunc('click', async ():{
-  await someAsyncFunction();
-  pb.collection('users').authWithOAuth2({ provider});
-});
-\"\"\"
+```gdscript
+if auth_result is ClientResponseError and auth_result.status == 401:
+    var response_data = auth_result.data
+    if response_data.has("mfaId"):
+        # Proceed with second authentication factor
+        await handle_mfa(email, response_data["mfaId"])
+```

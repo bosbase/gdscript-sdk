@@ -13,27 +13,28 @@ BosBase allows you to upload and manage files through file fields in your collec
 - File modifiers for append/prepend/delete operations
 
 **Backend Endpoints:**
-- "POST /api/files/token" - Get file access token for protected files
-- "GET /api/files/{collection}/{recordId}/{filename}" - Download file
+- `POST /api/files/token` - Get file access token for protected files
+- `GET /api/files/{collection}/{recordId}/{filename}` - Download file
 
 ## File Field Configuration
 
 Before uploading files, you must add a file field to your collection:
 
-``"javascript
-const collection = await pb.collections.getOne('example');
+```gdscript
+var collection = await pb.collections.get_one("example")
 
-collection.fields.push({
-  "name": 'documents',
-  "type": 'file',
-  "maxSelect": 5,        # Maximum number of files (1 for single file)
-  "maxSize": 5242880,    # 5MB in bytes (optional, "default": 5MB)
-  "mimeTypes": ['image/jpeg', 'image/png', 'application/pdf'],
-  "thumbs": ['100x100', '300x300'],  # Thumbnail sizes for images
-  protected});
+collection.fields.append({
+    "name": "documents",
+    "type": "file",
+    "maxSelect": 5,        # Maximum number of files (1 for single file)
+    "maxSize": 5242880,    # 5MB in bytes (optional, default: 5MB)
+    "mimeTypes": ["image/jpeg", "image/png", "application/pdf"],
+    "thumbs": ["100x100", "300x300"],  # Thumbnail sizes for images
+    "protected": false
+})
 
-await pb.collections.update('example', { fields});
-"`"
+await pb.collections.update("example", { "fields": collection.fields })
+```
 
 ## Uploading Files
 
@@ -41,107 +42,122 @@ await pb.collections.update('example', { fields});
 
 When creating a new record, you can upload files directly:
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
-# Method 1: Using File/Blob objects
-const createdRecord = await pb.collection('example').create({
-  title: 'Hello world!',
-  'documents': [
-    new File(['content 1...'], 'file1.txt'),
-    new File(['content 2...'], 'file2.txt'),
-  ]
-});
+# Read file from disk
+var file_path = "res://path/to/file.jpg"
+var file = FileAccess.open(file_path, FileAccess.READ)
+if file == null:
+    push_error("Failed to open file")
+    return
 
-# Method 2: Using FormData (for HTML file inputs)
-const formData = new FormData();
-formData.append('title', 'Hello world!');
+var file_data = file.get_buffer(file.get_length())
+file.close()
 
-# Handle file input
-const fileInput = document.getElementById('fileInput');
-fileInput.addEventListener('change', function() {
-  for (let file of fileInput.files) {
-    formData.append('documents', file);
-  }
-});
+# Prepare files dictionary
+var files = {
+    "documents": {
+        "filename": "file.jpg",
+        "content_type": "image/jpeg",
+        "data": file_data  # PackedByteArray
+    }
+}
 
-const createdRecord = await pb.collection('example').create(formData);
-"`"
+# Create record with file
+var created_record = await pb.collection("example").create({
+    "title": "Hello world!"
+}, {}, files)
+```
 
 ### Upload with Update
 
-"`"javascript
+```gdscript
+# Read file
+var file = FileAccess.open("res://path/to/file3.txt", FileAccess.READ)
+var file_data = file.get_buffer(file.get_length())
+file.close()
+
 # Update record and upload new files
-const updatedRecord = await pb.collection('example').update('RECORD_ID', {
-  title: 'Updated title',
-  'documents': [
-    new File(['content 3...'], 'file3.txt'),
-  ]
-});
-"`"
+var files = {
+    "documents": {
+        "filename": "file3.txt",
+        "content_type": "text/plain",
+        "data": file_data
+    }
+}
+
+var updated_record = await pb.collection("example").update("RECORD_ID", {
+    "title": "Updated title"
+}, {}, files)
+```
 
 ### Append Files (Using + Modifier)
 
 For multiple file fields, use the "+" modifier to append files:
 
-"`"javascript
+```gdscript
 # Append files to existing ones
-await pb.collection('example').update('RECORD_ID', {
-  'documents+': new File(['content 4...'], 'file4.txt')
-});
+var file = FileAccess.open("res://path/to/file4.txt", FileAccess.READ)
+var file_data = file.get_buffer(file.get_length())
+file.close()
 
-# Or prepend files (files will appear first)
-await pb.collection('example').update('RECORD_ID', {
-  '+documents': new File(['content 0...'], 'file0.txt')
-});
-"`"
-
-### Upload Multiple Files with Modifiers
-
-"`"javascript
-const formData = new FormData();
-formData.append('title', 'Updated');
-
-# Append multiple files
-for (let file of selectedFiles) {
-  formData.append('documents+', file);
+var files = {
+    "documents+": {
+        "filename": "file4.txt",
+        "content_type": "text/plain",
+        "data": file_data
+    }
 }
 
-await pb.collection('example').update('RECORD_ID', formData);
-"`"
+await pb.collection("example").update("RECORD_ID", {}, {}, files)
+```
+
+### Upload Multiple Files
+
+```gdscript
+# Prepare multiple files
+var files = {
+    "documents": [
+        {
+            "filename": "file1.txt",
+            "content_type": "text/plain",
+            "data": file_data_1
+        },
+        {
+            "filename": "file2.pdf",
+            "content_type": "application/pdf",
+            "data": file_data_2
+        }
+    ]
+}
+
+await pb.collection("example").update("RECORD_ID", {
+    "title": "Updated"
+}, {}, files)
+```
 
 ## Deleting Files
 
 ### Delete All Files
 
-"`"javascript
+```gdscript
 # Delete all files in a field (set to empty array)
-await pb.collection('example').update('RECORD_ID', {
-  'documents'});
-"`"
+await pb.collection("example").update("RECORD_ID", {
+    "documents": []
+})
+```
 
 ### Delete Specific Files (Using - Modifier)
 
-"`"javascript
+```gdscript
 # Delete individual files by filename
-await pb.collection('example').update('RECORD_ID', {
-  'documents-': ['file1.pdf', 'file2.txt']
-});
-"`"
-
-### Delete with FormData
-
-"`"javascript
-const formData = new FormData();
-formData.append('documents', '');  # Empty string for all files
-# OR
-formData.append('documents-', 'file1.pdf');
-formData.append('documents-', 'file2.txt');
-
-await pb.collection('example').update('RECORD_ID', formData);
-"`"
+await pb.collection("example").update("RECORD_ID", {
+    "documents-": ["file1.pdf", "file2.txt"]
+})
+```
 
 ## File URLs
 
@@ -149,45 +165,46 @@ await pb.collection('example').update('RECORD_ID', formData);
 
 Each uploaded file can be accessed via its URL:
 
-"`"
-http:#localhost:8090/api/files/COLLECTION_ID_OR_NAME/RECORD_ID/FILENAME
-"`"
+```
+http://localhost:8090/api/files/COLLECTION_ID_OR_NAME/RECORD_ID/FILENAME
+```
 
 **Using SDK:**
 
-"`"javascript
-const record = await pb.collection('example').getOne('RECORD_ID');
+```gdscript
+var record = await pb.collection("example").get_one("RECORD_ID")
 
 # Single file field (returns string)
-const filename = record.documents;
-const url = pb.files.getURL(record, filename);
+var filename = record.documents
+var url = pb.files.get_url(record, filename)
 
 # Multiple file field (returns array)
-const firstFile = record.documents[0];
-const url = pb.files.getURL(record, firstFile);
-"`"
+var first_file = record.documents[0]
+var url = pb.files.get_url(record, first_file)
+```
 
 ### Image Thumbnails
 
 If your file field has thumbnail sizes configured, you can request thumbnails:
 
-"`"javascript
-const record = await pb.collection('example').getOne('RECORD_ID');
-const filename = record.avatar;  # Image file
+```gdscript
+var record = await pb.collection("example").get_one("RECORD_ID")
+var filename = record.avatar  # Image file
 
 # Get thumbnail with specific size
-const thumbUrl = pb.files.getURL(record, filename, {
-  thumb});
-"`"
+var thumb_url = pb.files.get_url(record, filename, {
+    "thumb": "100x100"
+})
+```
 
 **Thumbnail Formats:**
 
-- "WxH" (e.g., "100x300") - Crop to WxH viewbox from center
-- "WxHt" (e.g., "100x300t") - Crop to WxH viewbox from top
-- "WxHb" (e.g., "100x300b") - Crop to WxH viewbox from bottom
-- "WxHf" (e.g., "100x300f") - Fit inside WxH viewbox (no cropping)
-- "0xH" (e.g., "0x300") - Resize to H height, preserve aspect ratio
-- "Wx0" (e.g., "100x0") - Resize to W width, preserve aspect ratio
+- `WxH` (e.g., "100x300") - Crop to WxH viewbox from center
+- `WxHt` (e.g., "100x300t") - Crop to WxH viewbox from top
+- `WxHb` (e.g., "100x300b") - Crop to WxH viewbox from bottom
+- `WxHf` (e.g., "100x300f") - Fit inside WxH viewbox (no cropping)
+- `0xH` (e.g., "0x300") - Resize to H height, preserve aspect ratio
+- `Wx0` (e.g., "100x0") - Resize to W width, preserve aspect ratio
 
 **Supported Image Formats:**
 - JPEG (".jpg", ".jpeg")
@@ -197,26 +214,27 @@ const thumbUrl = pb.files.getURL(record, filename, {
 
 **Example:**
 
-"`"javascript
-const record = await pb.collection('products').getOne('PRODUCT_ID');
-const image = record.image;
+```gdscript
+var record = await pb.collection("products").get_one("PRODUCT_ID")
+var image = record.image
 
 # Different thumbnail sizes
-const thumbSmall = pb.files.getURL(record, image, { thumb});
-const thumbMedium = pb.files.getURL(record, image, { thumb});
-const thumbLarge = pb.files.getURL(record, image, { thumb});
-const thumbHeight = pb.files.getURL(record, image, { thumb});
-const thumbWidth = pb.files.getURL(record, image, { thumb});
-"`"
+var thumb_small = pb.files.get_url(record, image, { "thumb": "100x100" })
+var thumb_medium = pb.files.get_url(record, image, { "thumb": "300x300" })
+var thumb_large = pb.files.get_url(record, image, { "thumb": "800x600f" })
+var thumb_height = pb.files.get_url(record, image, { "thumb": "0x300" })
+var thumb_width = pb.files.get_url(record, image, { "thumb": "100x0" })
+```
 
 ### Force Download
 
-To force browser download instead of preview:
+To force download instead of preview:
 
-"`"javascript
-const url = pb.files.getURL(record, filename, {
-  download});
-"`"
+```gdscript
+var url = pb.files.get_url(record, filename, {
+    "download": true
+})
+```
 
 ## Protected Files
 
@@ -224,36 +242,37 @@ By default, all files are publicly accessible if you know the full URL. For sens
 
 ### Setting Up Protected Files
 
-"`"javascript
-const collection = await pb.collections.getOne('example');
+```gdscript
+var collection = await pb.collections.get_one("example")
 
-const fileField = collection.fields.find(f => f.name === 'documents');
-if (fileField) {
-  fileField.protected = true;
-  await pb.collections.update('example', { fields});
-}
-"`"
+# Find and update file field
+for field in collection.fields:
+    if field.name == "documents":
+        field.protected = true
+        break
+
+await pb.collections.update("example", { "fields": collection.fields })
+```
 
 ### Accessing Protected Files
 
 Protected files require authentication and a file token:
 
-"`"javascript
+```gdscript
 # Step 1: Authenticate
-await pb.collection('users').authWithPassword('user@example.com', 'password123');
+await pb.collection("users").auth_with_password("user@example.com", "password123")
 
 # Step 2: Get file token (valid for ~2 minutes)
-const fileToken = await pb.files.getToken();
+var file_token = await pb.files.get_token()
 
 # Step 3: Get protected file URL with token
-const record = await pb.collection('example').getOne('RECORD_ID');
-const url = pb.files.getURL(record, record.privateDocument, {
-  token});
+var record = await pb.collection("example").get_one("RECORD_ID")
+var url = pb.files.get_url(record, record.private_document, {
+    "token": file_token.token
+})
 
-# Use the URL
-const img = document.createElement('img');
-img.src = url;
-"`"
+# Use the URL (e.g., load into Texture2D or download)
+```
 
 **Important:**
 - File tokens are short-lived (~2 minutes)
@@ -262,234 +281,230 @@ img.src = url;
 
 ### Complete Protected File Example
 
-"`"javascript
-async function loadProtectedImage(recordId, filename) {
-  try {
+```gdscript
+func load_protected_image(record_id: String, filename: String) -> String:
     # Check if authenticated
-    if (!pb.authStore.isValid) {
-      throw new Error('Not authenticated');
-    }
+    if not pb.auth_store.is_valid:
+        push_error("Not authenticated")
+        return ""
 
     # Get fresh token
-    const token = await pb.files.getToken();
+    var token_result = await pb.files.get_token()
+    if token_result is ClientResponseError:
+        push_error("Failed to get file token: " + token_result.to_string())
+        return ""
 
     # Get file URL
-    const record = await pb.collection('example').getOne(recordId);
-    const url = pb.files.getURL(record, filename, { token });
+    var record = await pb.collection("example").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return ""
 
-    return url;
-  } catch (err) {
-    if (err.status === 404) {
-      push_error('File not found or access denied');
-    } else if (err.status === 401) {
-      push_error('Authentication required');
-      pb.authStore.clear();
-    }
-    throw err;
-  }
-}
-"`"
+    var url = pb.files.get_url(record, filename, { "token": token_result.token })
+    return url
+```
 
 ## Complete Examples
 
 ### Example 1: Image Upload with Thumbnails
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
-await pb.admins.authWithPassword('admin@example.com', 'password');
+var pb = BosBase.new("http://localhost:8090")
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error(auth.to_string())
+    return
 
 # Create collection with image field and thumbnails
-const collection = await pb.collections.createBase('products', {
-  "fields": [
-    { "name": 'name', "type": 'text', required},
-    {
-      name: 'image',
-      type: 'file',
-      maxSelect: 1,
-      mimeTypes: ['image/jpeg', 'image/png'],
-      thumbs: ['100x100', '300x300', '800x600f']  # Thumbnail sizes
-    }
-  ]
-});
+var collection = await pb.collections.create_base("products", {
+    "fields": [
+        { "name": "name", "type": "text", "required": true },
+        {
+            "name": "image",
+            "type": "file",
+            "maxSelect": 1,
+            "mimeTypes": ["image/jpeg", "image/png"],
+            "thumbs": ["100x100", "300x300", "800x600f"]  # Thumbnail sizes
+        }
+    ]
+})
+
+# Read image file
+var image_path = "res://product.jpg"
+var file = FileAccess.open(image_path, FileAccess.READ)
+var image_data = file.get_buffer(file.get_length())
+file.close()
 
 # Upload product with image
-const product = await pb.collection('products').create({
-  name: 'My Product',
-  image: new File([imageBlob], 'product.jpg')
-});
-
-# Display thumbnail in UI
-const thumbnailUrl = pb.files.getURL(product, product.image, {
-  thumb});
-
-const img = document.createElement('img');
-img.src = thumbnailUrl;
-document.body.appendChild(img);
-"`"
-
-### Example 2: Multiple File Upload with Progress
-
-"`"javascript
-const fileInput = document.getElementById('fileInput');
-const progressBar = document.getElementById('progress');
-
-fileInput.addEventListenerfunc('change', async (e):{
-  const files = Array.from(e.target.files);
-  
-  const formData = new FormData();
-  formData.append('title', 'Document Set');
-
-  # Add all files
-  files.for_each(file => {
-    formData.append('documents', file);
-  });
-
-  try {
-    # Note: Progress tracking requires XMLHttpRequest or fetch API with ReadableStream
-    const record = await pb.collection('example').create(formData);
-    
-    print('Uploaded files:', record.documents);
-    progressBar.value = 100;
-  } catch (err) {
-    push_error('Upload failed:', err);
-  }
-});
-"`"
-
-### Example 3: File Management UI
-
-"`"javascript
-class FileManager {
-  constructor(collectionId, recordId) {
-    this.collectionId = collectionId;
-    this.recordId = recordId;
-    this.record = null;
-  }
-
-  async load() {
-    this.record = await pb.collection(this.collectionId).getOne(this.recordId);
-    this.render();
-  }
-
-  render() {
-    const container = document.getElementById('files-list');
-    container.innerHTML = '';
-
-    const files = Array.isArray(this.record.documents) 
-      ? this.record.documents 
-      });
-  }
-
-  createFileItem(filename) {
-    const div = document.createElement('div');
-    div.className = 'file-item';
-
-    const url = pb.files.getURL(this.record, filename);
-    const link = document.createElement('a');
-    link.href = url;
-    link.textContent = filename;
-    link.target = '_blank';
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.onclick = () => this.deleteFile(filename);
-
-    div.appendChild(link);
-    div.appendChild(deleteBtn);
-    return div;
-  }
-
-  async deleteFile(filename) {
-    await pb.collection(this.collectionId).update(this.recordId, {
-      'documents-'});
-    await this.load();  # Reload
-  }
-
-  async addFiles(files) {
-    const formData = new FormData();
-    Array.from(files).for_each(file => {
-      formData.append('documents+', file);
-    });
-
-    await pb.collection(this.collectionId).update(this.recordId, formData);
-    await this.load();  # Reload
-  }
+var files = {
+    "image": {
+        "filename": "product.jpg",
+        "content_type": "image/jpeg",
+        "data": image_data
+    }
 }
 
-# Usage
-const manager = new FileManager('example', 'RECORD_ID');
-await manager.load();
-"`"
+var product = await pb.collection("products").create({
+    "name": "My Product"
+}, {}, files)
+
+# Display thumbnail in UI
+var thumbnail_url = pb.files.get_url(product, product.image, {
+    "thumb": "100x100"
+})
+
+# Load texture from URL in Godot
+# var texture = await load_texture_from_url(thumbnail_url)
+```
+
+### Example 2: Multiple File Upload
+
+```gdscript
+func upload_multiple_files(file_paths: Array) -> void:
+    var files = {}
+    var file_list = []
+    
+    for file_path in file_paths:
+        var file = FileAccess.open(file_path, FileAccess.READ)
+        if file == null:
+            push_error("Failed to open file: " + file_path)
+            continue
+        
+        var file_data = file.get_buffer(file.get_length())
+        file.close()
+        
+        var extension = file_path.get_extension()
+        var content_type = "application/octet-stream"
+        match extension:
+            "jpg", "jpeg":
+                content_type = "image/jpeg"
+            "png":
+                content_type = "image/png"
+            "pdf":
+                content_type = "application/pdf"
+        
+        file_list.append({
+            "filename": file_path.get_file(),
+            "content_type": content_type,
+            "data": file_data
+        })
+    
+    files["documents"] = file_list
+    
+    var result = await pb.collection("example").create({
+        "title": "Document Set"
+    }, {}, files)
+    
+    if result is ClientResponseError:
+        push_error("Upload failed: " + result.to_string())
+    else:
+        print("Uploaded files: ", result.documents)
+```
+
+### Example 3: File Management
+
+```gdscript
+class_name FileManager
+
+var collection_id: String
+var record_id: String
+var record: Dictionary
+
+func _init(collection_id: String, record_id: String) -> void:
+    self.collection_id = collection_id
+    self.record_id = record_id
+
+func load_record() -> void:
+    var result = await pb.collection(collection_id).get_one(record_id)
+    if result is ClientResponseError:
+        push_error("Failed to load record: " + result.to_string())
+        return
+    record = result
+
+func delete_file(filename: String) -> void:
+    await pb.collection(collection_id).update(record_id, {
+        "documents-": [filename]
+    })
+    await load_record()  # Reload
+
+func add_files(file_dict: Dictionary) -> void:
+    # file_dict should be in format: { "documents+": {...} } or { "documents": [...] }
+    await pb.collection(collection_id).update(record_id, {}, {}, file_dict)
+    await load_record()  # Reload
+
+func get_file_url(filename: String, thumb: String = "") -> String:
+    var options = {}
+    if thumb != "":
+        options["thumb"] = thumb
+    return pb.files.get_url(record, filename, options)
+```
 
 ### Example 4: Protected Document Viewer
 
-"`"javascript
-async function viewProtectedDocument(recordId, filename) {
-  # Authenticate if needed
-  if (!pb.authStore.isValid) {
-    await pb.collection('users').authWithPassword('user@example.com', 'pass');
-  }
+```gdscript
+func view_protected_document(record_id: String, filename: String) -> String:
+    # Authenticate if needed
+    if not pb.auth_store.is_valid:
+        var auth = await pb.collection("users").auth_with_password("user@example.com", "pass")
+        if auth is ClientResponseError:
+            push_error("Authentication failed: " + auth.to_string())
+            return ""
 
-  # Get token
-  let token;
-  try {
-    token = await pb.files.getToken();
-  } catch (err) {
-    push_error('Failed to get file token:', err);
-    return null;
-  }
+    # Get token
+    var token_result = await pb.files.get_token()
+    if token_result is ClientResponseError:
+        push_error("Failed to get file token: " + token_result.to_string())
+        return ""
 
-  # Get record and file URL
-  const record = await pb.collection('documents').getOne(recordId);
-  const url = pb.files.getURL(record, filename, { token });
+    # Get record and file URL
+    var record = await pb.collection("documents").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return ""
 
-  # Open in new tab or iframe
-  window.open(url, '_blank');
-  return url;
-}
-"`"
+    var url = pb.files.get_url(record, filename, { "token": token_result.token })
+    return url
+```
 
 ### Example 5: Image Gallery with Thumbnails
 
-"`"javascript
-async function displayImageGallery(recordId) {
-  const record = await pb.collection('gallery').getOne(recordId);
-  const images = record.images;  # Array of filenames
-
-  const gallery = document.getElementById('gallery');
-  
-  images.for_each(filename => {
-    # Thumbnail for grid view
-    const thumbUrl = pb.files.getURL(record, filename, {
-      thumb});
-
-    # Full size for lightbox
-    const fullUrl = pb.files.getURL(record, filename, {
-      thumb});
-
-    const item = document.createElement('div');
-    item.className = 'gallery-item';
+```gdscript
+func display_image_gallery(record_id: String) -> Array:
+    var record = await pb.collection("gallery").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to load gallery: " + record.to_string())
+        return []
     
-    const thumb = document.createElement('img');
-    thumb.src = thumbUrl;
-    thumb.onclick = () => openLightbox(fullUrl);
+    var images = record.images  # Array of filenames
+    var gallery_urls = []
     
-    item.appendChild(thumb);
-    gallery.appendChild(item);
-  });
-}
-"`"
+    for filename in images:
+        # Thumbnail for grid view
+        var thumb_url = pb.files.get_url(record, filename, {
+            "thumb": "200x200"
+        })
+        
+        # Full size for detail view
+        var full_url = pb.files.get_url(record, filename)
+        
+        gallery_urls.append({
+            "thumb": thumb_url,
+            "full": full_url,
+            "filename": filename
+        })
+    
+    return gallery_urls
+```
 
 ## File Field Modifiers
 
 ### Summary
 
-- **No modifier** - Replace all files: "documents: [file1, file2]"
-- **"+" suffix** - Append files: "documents+: file3"
-- **"+" prefix** - Prepend files: "+documents: file0"
-- **"-" suffix** - Delete files: "documents-: ['file1.pdf']"
+- **No modifier** - Replace all files: `"documents": [file1, file2]`
+- **"+" suffix** - Append files: `"documents+": file3`
+- **"-" suffix** - Delete files: `"documents-": ["file1.pdf"]`
 
 ## Best Practices
 
@@ -503,28 +518,37 @@ async function displayImageGallery(recordId) {
 
 ## Error Handling
 
-"`"javascript
-try {
-  const record = await pb.collection('example').create({
-    title: 'Test',
-    documents: [new File(['content'], 'test.txt')]
-  });
-} catch (err) {
-  if (err.status === 413) {
-    push_error('File too large');
-  } else if (err.status === 400) {
-    push_error('Invalid file type or field validation failed');
-  } else if (err.status === 403) {
-    push_error('Insufficient permissions');
-  } else {
-    push_error('Upload failed:', err);
-  }
+```gdscript
+var file = FileAccess.open("res://test.txt", FileAccess.READ)
+var file_data = file.get_buffer(file.get_length())
+file.close()
+
+var files = {
+    "documents": {
+        "filename": "test.txt",
+        "content_type": "text/plain",
+        "data": file_data
+    }
 }
-"`"
+
+var result = await pb.collection("example").create({
+    "title": "Test"
+}, {}, files)
+
+if result is ClientResponseError:
+    if result.status == 413:
+        push_error("File too large")
+    elif result.status == 400:
+        push_error("Invalid file type or field validation failed")
+    elif result.status == 403:
+        push_error("Insufficient permissions")
+    else:
+        push_error("Upload failed: " + result.to_string())
+```
 
 ## Storage Options
 
-By default, BosBase stores files in "pb_data/storage` on the local filesystem. For production, you can configure S3-compatible storage (AWS S3, MinIO, Wasabi, DigitalOcean Spaces, etc.) from:
+By default, BosBase stores files in `pb_data/storage` on the local filesystem. For production, you can configure S3-compatible storage (AWS S3, MinIO, Wasabi, DigitalOcean Spaces, etc.) from:
 **Dashboard > Settings > Files storage**
 
 This is configured server-side and doesn't require SDK changes.

@@ -5,102 +5,108 @@
 API Rules are your collection access controls and data filters. They control who can perform actions on your collections and what data they can access.
 
 Each collection has 5 rules, corresponding to specific API actions:
-- "listRule" - Controls who can list records
-- "viewRule" - Controls who can view individual records
-- "createRule" - Controls who can create records
-- "updateRule" - Controls who can update records
-- "deleteRule" - Controls who can delete records
+- `listRule` - Controls who can list records
+- `viewRule` - Controls who can view individual records
+- `createRule` - Controls who can create records
+- `updateRule` - Controls who can update records
+- `deleteRule` - Controls who can delete records
 
-Auth collections have an additional "manageRule" that allows one user to fully manage another user's data.
+Auth collections have an additional `manageRule` that allows one user to fully manage another user's data.
 
 ## Rule Values
 
 Each rule can be set to:
 
-- **"null" (locked)** - Only authorized superusers can perform the action (default)
-- **Empty string """"** - Anyone can perform the action (superusers, authenticated users, and guests)
+- **`null` (locked)** - Only authorized superusers can perform the action (default)
+- **Empty string `""`** - Anyone can perform the action (superusers, authenticated users, and guests)
 - **Non-empty string** - Only users that satisfy the filter expression can perform the action
 
 ## Important Notes
 
-1. **Rules act as filters**: API Rules also act as record filters. For example, setting "listRule" to "status = "active"" will only return active records.
+1. **Rules act as filters**: API Rules also act as record filters. For example, setting `listRule` to `status = "active"` will only return active records.
 2. **HTTP Status Codes**: 
-   - "200" with empty items for unsatisfied "listRule"
-   - "400" for unsatisfied "createRule"
-   - "404" for unsatisfied "viewRule", "updateRule", "deleteRule"
-   - "403" for locked rules when not a superuser
+   - `200` with empty items for unsatisfied `listRule`
+   - `400` for unsatisfied `createRule`
+   - `404` for unsatisfied `viewRule`, `updateRule`, `deleteRule`
+   - `403` for locked rules when not a superuser
 3. **Superuser bypass**: API Rules are ignored when the action is performed by an authorized superuser.
 
 ## Setting Rules via SDK
 
-### JavaScript SDK
+### GDScript SDK
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
-await pb.admins.authWithPassword('admin@example.com', 'password');
+var pb = BosBase.new("http://localhost:8090")
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error(auth.to_string())
+    return
 
 # Create collection with rules
-const collection = await pb.collections.createBase('articles', {
-  "fields": [
-    { "name": 'title', "type": 'text', required},
-    { name: 'status', type: 'select', options: { values: ['draft', 'published'] }, maxSelect: 1 },
-    { "name": 'author', "type": 'relation', "options": { collectionId}, maxSelect: 1 }
-  ],
-  listRule: '@request.auth.id != "" || status = "published"',
-  viewRule: '@request.auth.id != "" || status = "published"',
-  createRule: '@request.auth.id != ""',
-  updateRule: 'author = @request.auth.id || @request.auth.role = "admin"',
-  deleteRule: 'author = @request.auth.id || @request.auth.role = "admin"'
-});
+var collection = await pb.collections.create_base("articles", {
+    "fields": [
+        { "name": "title", "type": "text", "required": true },
+        { "name": "status", "type": "select", "options": { "values": ["draft", "published"] }, "maxSelect": 1 },
+        { "name": "author", "type": "relation", "options": { "collectionId": "users" }, "maxSelect": 1 }
+    ],
+    "listRule": "@request.auth.id != \"\" || status = \"published\"",
+    "viewRule": "@request.auth.id != \"\" || status = \"published\"",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "author = @request.auth.id || @request.auth.role = \"admin\"",
+    "deleteRule": "author = @request.auth.id || @request.auth.role = \"admin\""
+})
 
 # Update rules
-await pb.collections.update('articles', {
-  listRule});
+await pb.collections.update("articles", {
+    "listRule": "@request.auth.id != \"\" || status = \"published\""
+})
 
 # Remove rule (set to empty string for public access)
-await pb.collections.update('articles', {
-  listRule});
+await pb.collections.update("articles", {
+    "listRule": ""
+})
 
 # Lock rule (set to null for superuser only)
-await pb.collections.update('articles', {
-  deleteRule});
-"`"
+await pb.collections.update("articles", {
+    "deleteRule": null
+})
+```
 
 ## Filter Syntax
 
-The syntax follows: "OPERAND OPERATOR OPERAND"
+The syntax follows: `OPERAND OPERATOR OPERAND`
 
 ### Operators
 
 **Comparison Operators:**
-- "=" - Equal
-- "!=" - NOT equal
-- ">" - Greater than
-- ">=" - Greater than or equal
-- "<" - Less than
-- "<=" - Less than or equal
+- `=` - Equal
+- `!=` - NOT equal
+- `>` - Greater than
+- `>=` - Greater than or equal
+- `<` - Less than
+- `<=` - Less than or equal
 
 **String Operators:**
-- "~" - Like/Contains (auto-wraps right operand in "%" for wildcard match)
-- "!~" - NOT Like/Contains
+- `~` - Like/Contains (auto-wraps right operand in "%" for wildcard match)
+- `!~` - NOT Like/Contains
 
 **Array Operators (Any/At least one of):**
-- "?=" - Any Equal
-- "?!=" - Any NOT equal
-- "?>" - Any Greater than
-- "?>=" - Any Greater than or equal
-- "?<" - Any Less than
-- "?<=" - Any Less than or equal
-- "?~" - Any Like/Contains
-- "?!~" - Any NOT Like/Contains
+- `?=` - Any Equal
+- `?!=` - Any NOT equal
+- `?>` - Any Greater than
+- `?>=` - Any Greater than or equal
+- `?<` - Any Less than
+- `?<=` - Any Less than or equal
+- `?~` - Any Like/Contains
+- `?!~` - Any NOT Like/Contains
 
 **Logical Operators:**
-- "&&" - AND
-- "||" - OR
-- "()" - Grouping
-- "#" - Single line comments
+- `&&` - AND
+- `||` - OR
+- `()` - Grouping
+- `#` - Single line comments
 
 ## Special Identifiers
 
@@ -109,43 +115,43 @@ The syntax follows: "OPERAND OPERATOR OPERAND"
 Access current request data:
 
 **@request.context** - The context where the rule is used
-"`"javascript
+```
 listRule: '@request.context != "oauth2"'
-"`"
+```
 
 **@request.method** - HTTP request method
-"`"javascript
+```
 updateRule: '@request.method = "PATCH"'
-"`"
+```
 
 **@request.headers.*** - Request headers (normalized to lowercase, "-" replaced with "_")
-"`"javascript
+```
 listRule: '@request.headers.x_token = "test"'
-"`"
+```
 
 **@request.query.*** - Query parameters
-"`"javascript
+```
 listRule: '@request.query.page = "1"'
-"`"
+```
 
 **@request.auth.*** - Current authenticated user
-"`"javascript
+```
 listRule: '@request.auth.id != ""'
 viewRule: '@request.auth.email = "admin@example.com"'
 updateRule: '@request.auth.role = "admin"'
-"`"
+```
 
 **@request.body.*** - Submitted body parameters
-"`"javascript
+```
 createRule: '@request.body.title != ""'
 updateRule: '@request.body.status:isset = false'  # Prevent changing status
-"`"
+```
 
 ### @collection.*
 
 Target other collections that aren't directly related:
 
-"`"javascript
+```
 # Check if user has access to related collection
 listRule: '@request.auth.id != "" && @collection.news.categoryId ?= categoryId && @collection.news.author ?= @request.auth.id'
 
@@ -156,34 +162,34 @@ listRule: "
   @collection.courseRegistrations:auth.user ?= @request.auth.id &&
   @collection.courseRegistrations.courseGroup ?= @collection.courseRegistrations:auth.courseGroup
 "
-"`"
+```
 
 ### @ Macros (Datetime)
 
 All macros are UTC-based:
 
-- "@now" - Current datetime as string
-- "@second" - Current second (0-59)
-- "@minute" - Current minute (0-59)
-- "@hour" - Current hour (0-23)
-- "@weekday" - Current weekday (0-6)
-- "@day" - Current day
-- "@month" - Current month
-- "@year" - Current year
-- "@yesterday" - Yesterday datetime
-- "@tomorrow" - Tomorrow datetime
-- "@todayStart" - Beginning of current day
-- "@todayEnd" - End of current day
-- "@monthStart" - Beginning of current month
-- "@monthEnd" - End of current month
-- "@yearStart" - Beginning of current year
-- "@yearEnd" - End of current year
+- `@now` - Current datetime as string
+- `@second` - Current second (0-59)
+- `@minute` - Current minute (0-59)
+- `@hour` - Current hour (0-23)
+- `@weekday` - Current weekday (0-6)
+- `@day` - Current day
+- `@month` - Current month
+- `@year` - Current year
+- `@yesterday` - Yesterday datetime
+- `@tomorrow` - Tomorrow datetime
+- `@todayStart` - Beginning of current day
+- `@todayEnd` - End of current day
+- `@monthStart` - Beginning of current month
+- `@monthEnd` - End of current month
+- `@yearStart` - Beginning of current year
+- `@yearEnd` - End of current year
 
 **Example:**
-"`"javascript
+```
 listRule: '@request.body.publicDate >= @now'
 listRule: 'created >= @todayStart && created <= @todayEnd'
-"`"
+```
 
 ## Field Modifiers
 
@@ -191,100 +197,100 @@ listRule: 'created >= @todayStart && created <= @todayEnd'
 
 Check if a field was submitted in the request (only for "@request.*" fields):
 
-"`"javascript
+```
 # Prevent changing role field
 updateRule: '@request.body.role:isset = false'
 
 # Require email field
 createRule: '@request.body.email:isset = true'
-"`"
+```
 
 ### :length
 
 Check the number of items in an array field (multiple file, select, relation):
 
-"`"javascript
+```
 # Check submitted array length
 createRule: '@request.body.tags:length > 1 && @request.body.tags:length <= 5'
 
 # Check existing record array length
 listRule: 'categories:length = 2'
 listRule: 'documents:length >= 1'
-"`"
+```
 
 ### :each
 
 Apply condition on each item in an array field:
 
-"`"javascript
+```
 # Check if all submitted select options contain "create"
 createRule: '@request.body.permissions:each ~ "create"'
 
 # Check if all existing field values have "pb_" prefix
 listRule: 'tags:each ~ "pb_%"'
-"`"
+```
 
 ### :lower
 
 Perform case-insensitive string comparisons:
 
-"`"javascript
+```
 # Case-insensitive comparison
 listRule: '@request.body.title:lower = "test"'
 updateRule: 'status:lower ~ "active"'
-"`"
+```
 
 ## geoDistance Function
 
 Calculate Haversine distance between two geographic points in kilometers:
 
-"`"javascript
+```
 # Offices within 25km of location
 listRule: 'geoDistance(address.lon, address.lat, 23.32, 42.69) < 25'
 
 # Using request data
 listRule: 'geoDistance(location.lon, location.lat, @request.query.lon, @request.query.lat) < @request.query.radius'
-"`"
+```
 
 ## Common Rule Examples
 
 ### Allow Only Authenticated Users
 
-"`"javascript
+```
 listRule: '@request.auth.id != ""'
 viewRule: '@request.auth.id != ""'
 createRule: '@request.auth.id != ""'
 updateRule: '@request.auth.id != ""'
 deleteRule: '@request.auth.id != ""'
-"`"
+```
 
 ### Owner-Based Access
 
-"`"javascript
+```
 viewRule: '@request.auth.id != "" && author = @request.auth.id'
 updateRule: '@request.auth.id != "" && author = @request.auth.id'
 deleteRule: '@request.auth.id != "" && author = @request.auth.id'
-"`"
+```
 
 ### Role-Based Access
 
-"`"javascript
+```
 # Assuming users have a "role" select field
 listRule: '@request.auth.id != "" && @request.auth.role = "admin"'
 updateRule: '@request.auth.role = "admin" || author = @request.auth.id'
-"`"
+```
 
 ### Public with Authentication
 
-"`"javascript
+```
 # Public can view published, authenticated can view all
 listRule: '@request.auth.id != "" || status = "published"'
 viewRule: '@request.auth.id != "" || status = "published"'
-"`"
+```
 
 ### Filtered Results
 
-"`"javascript
+```
 # Only show active records
 listRule: 'status = "active"'
 
@@ -293,11 +299,11 @@ listRule: 'created >= @yesterday'
 
 # Only show records matching user's organization
 listRule: '@request.auth.id != "" && organization = @request.auth.organization'
-"`"
+```
 
 ### Complex Rules
 
-"`"javascript
+```
 # Multiple conditions
 listRule: '@request.auth.id != "" && (status = "published" || status = "draft") && author = @request.auth.id'
 
@@ -306,92 +312,115 @@ listRule: '@request.auth.id != "" && author.role = "staff"'
 
 # Back relations
 listRule: '@request.auth.id != "" && comments_via_author.id != ""'
-"`"
+```
 
 ## Using Filters in Queries
 
 Filters can also be used in regular queries (not just rules):
 
-"`"javascript
+```gdscript
 # List with filter
-const result = await pb.collection('articles').getList(1, 20, {
-  filter});
+var result = await pb.collection("articles").get_list(1, 20, {
+    "filter": "status = \"published\""
+})
 
 # Complex filter
-const result = await pb.collection('articles').getList(1, 20, {
-  filter});
+var result = await pb.collection("articles").get_list(1, 20, {
+    "filter": "title ~ \"javascript\" && views > 100"
+})
 
 # Using relation filters
-const result = await pb.collection('articles').getList(1, 20, {
-  filter});
+var result = await pb.collection("articles").get_list(1, 20, {
+    "filter": "author.role = \"admin\""
+})
 
 # Geo distance filter
-const result = await pb.collection('offices').getList(1, 20, {
-  filter: 'geoDistance(location.lon, location.lat, 23.32, 42.69) < 25'
-});
-"`"
+var result = await pb.collection("offices").get_list(1, 20, {
+    "filter": "geoDistance(location.lon, location.lat, 23.32, 42.69) < 25"
+})
+```
 
 ## Complete Example
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
-await pb.admins.authWithPassword('admin@example.com', 'password');
+var pb = BosBase.new("http://localhost:8090")
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error(auth.to_string())
+    return
 
 # Create users collection with role field
-const users = await pb.collections.createAuth('users', {
-  "fields": [
-    { "name": 'name', "type": 'text', required},
-    { name: 'role', type: 'select', options: { values: ['user', 'staff', 'admin'] }, maxSelect: 1 }
-  ]
-});
+var users = await pb.collections.create_auth("users", {
+    "fields": [
+        { "name": "name", "type": "text", "required": true },
+        { "name": "role", "type": "select", "options": { "values": ["user", "staff", "admin"] }, "maxSelect": 1 }
+    ]
+})
 
 # Create articles collection with comprehensive rules
-const articles = await pb.collections.createBase('articles', {
-  "fields": [
-    { "name": 'title', "type": 'text', required},
-    { "name": 'content', "type": 'editor', required},
-    { name: 'status', type: 'select', options: { values: ['draft', 'published', 'archived'] }, maxSelect: 1 },
-    { "name": 'author', "type": 'relation', "options": { collectionId}, maxSelect: 1, required: true },
-    { "name": 'categories', "type": 'relation', "options": { collectionId}, maxSelect: 5 },
-    { "name": 'published_at', type}
-  ],
-  # Public can see published, authenticated can see their own or published
-  listRule: '@request.auth.id != "" && (author = @request.auth.id || status = "published") || status = "published"',
-  
-  # Same logic for viewing
-  viewRule: '@request.auth.id != "" && (author = @request.auth.id || status = "published") || status = "published"',
-  
-  # Only authenticated users can create
-  createRule: '@request.auth.id != ""',
-  
-  # Owners or admins can update, but prevent changing status after publishing
-  updateRule: '@request.auth.id != "" && (author = @request.auth.id || @request.auth.role = "admin") && (@request.body.status:isset = false || status != "published")',
-  
-  # Only owners or admins can delete
-  deleteRule: '@request.auth.id != "" && (author = @request.auth.id || @request.auth.role = "admin")'
-});
+var articles = await pb.collections.create_base("articles", {
+    "fields": [
+        { "name": "title", "type": "text", "required": true },
+        { "name": "content", "type": "editor", "required": true },
+        { "name": "status", "type": "select", "options": { "values": ["draft", "published", "archived"] }, "maxSelect": 1 },
+        { "name": "author", "type": "relation", "options": { "collectionId": users.id }, "maxSelect": 1, "required": true },
+        { "name": "categories", "type": "relation", "options": { "collectionId": "categories" }, "maxSelect": 5 },
+        { "name": "published_at", "type": "date" }
+    ],
+    # Public can see published, authenticated can see their own or published
+    "listRule": "@request.auth.id != \"\" && (author = @request.auth.id || status = \"published\") || status = \"published\"",
+    
+    # Same logic for viewing
+    "viewRule": "@request.auth.id != \"\" && (author = @request.auth.id || status = \"published\") || status = \"published\"",
+    
+    # Only authenticated users can create
+    "createRule": "@request.auth.id != \"\"",
+    
+    # Owners or admins can update, but prevent changing status after publishing
+    "updateRule": "@request.auth.id != \"\" && (author = @request.auth.id || @request.auth.role = \"admin\") && (@request.body.status:isset = false || status != \"published\")",
+    
+    # Only owners or admins can delete
+    "deleteRule": "@request.auth.id != \"\" && (author = @request.auth.id || @request.auth.role = \"admin\")"
+})
 
 # Authenticate as regular user
-await pb.collection('users').authWithPassword('user@example.com', 'password123');
+var user_auth = await pb.collection("users").auth_with_password("user@example.com", "password123")
+if user_auth is ClientResponseError:
+    push_error("User authentication failed: " + user_auth.to_string())
+    return
 
 # User can create article
-const article = await pb.collection('articles').create({
-  "title": 'My Article',
-  "content": '<p>Content</p>',
-  "status": 'draft',
-  author});
+var article = await pb.collection("articles").create({
+    "title": "My Article",
+    "content": "<p>Content</p>",
+    "status": "draft",
+    "author": pb.auth_store.record.id
+})
+
+if article is ClientResponseError:
+    push_error("Failed to create article: " + article.to_string())
+    return
 
 # User can update their own article
-await pb.collection('articles').update(article.id, {
-  title});
+await pb.collection("articles").update(article.id, {
+    "title": "Updated Title"
+})
 
 # User can list their own articles or published ones
-const myArticles = await pb.collection('articles').getList(1, 20, {
-  filter});
+var my_articles = await pb.collection("articles").get_list(1, 20, {
+    "filter": "author = \"" + pb.auth_store.record.id + "\""
+})
 
 # User can also query with additional filters
-const published = await pb.collection('articles').getList(1, 20, {
-  filter});
-"``
+var published = await pb.collection("articles").get_list(1, 20, {
+    "filter": "status = \"published\""
+})
+```
+
+## Related Documentation
+
+- [Collections](./COLLECTIONS.md) - Collection configuration
+- [Authentication](./AUTHENTICATION.md) - User authentication
+- [API Records](./API_RECORDS.md) - Working with records

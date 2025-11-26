@@ -12,8 +12,8 @@ The Schema Query API provides lightweight interfaces to retrieve collection fiel
 - Fast and efficient queries
 
 **Backend Endpoints:**
-- "GET /api/collections/{collection}/schema" - Get single collection schema
-- "GET /api/collections/schemas" - Get all collection schemas
+- `GET /api/collections/{collection}/schema` - Get single collection schema
+- `GET /api/collections/schemas` - Get all collection schemas
 
 **Note**: All Schema Query API operations require superuser authentication.
 
@@ -21,16 +21,17 @@ The Schema Query API provides lightweight interfaces to retrieve collection fiel
 
 All Schema Query API operations require superuser authentication:
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#127.0.0.1:8090\")
+var pb = BosBase.new("http://127.0.0.1:8090")
 
 # Authenticate as superuser
-await pb.admins.authWithPassword('admin@example.com', 'password');
-# OR
-await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
-"`"
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
+```
 
 ## Type Definitions
 
@@ -38,324 +39,342 @@ await pb.collection('_superusers').authWithPassword('admin@example.com', 'passwo
 
 Simplified field information returned by schema queries:
 
-"`"typescript
-interface CollectionFieldSchemaInfo {
-    "name": string;        # Field name
-    "type": string;        # Field type (e.g., "text", "number", "email", "relation")
-    required?: boolean;  # Whether the field is required
-    system?: boolean;    # Whether the field is a system field
-    hidden?}
-"`"
+```gdscript
+{
+    "name": String,        # Field name
+    "type": String,        # Field type (e.g., "text", "number", "email", "relation")
+    "required": bool,      # Whether the field is required (optional)
+    "system": bool,        # Whether the field is a system field (optional)
+    "hidden": bool         # Whether the field is hidden (optional)
+}
+```
 
 ### CollectionSchemaInfo
 
 Schema information for a single collection:
 
-"`"typescript
-interface CollectionSchemaInfo {
-    "name": string;                        # Collection name
-    "type": string;                        # Collection type ("base", "auth", "view")
-    fields}
-"`"
+```gdscript
+{
+    "name": String,        # Collection name
+    "type": String,        # Collection type ("base", "auth", "view")
+    "fields": Array        # Array of CollectionFieldSchemaInfo
+}
+```
 
 ## Get Single Collection Schema
 
 Retrieves the schema (fields and types) for a single collection by name or ID.
 
-### Method Signature
-
-"`"typescript
-getSchema(collectionIdOrName: string, options?: CommonOptions): Promise<CollectionSchemaInfo>
-"`"
-
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Get schema for a collection by name
-const schema = await pb.collections.getSchema('demo1');
+var schema = await pb.collections.get_schema("demo1")
 
-print(schema.name);    # "demo1"
-print(schema.type);    # "base"
-print(schema.fields);  # Array of field information
+if schema is ClientResponseError:
+    push_error("Failed to get schema: " + schema.to_string())
+    return
+
+print(schema.name)    # "demo1"
+print(schema.type)    # "base"
+print(schema.fields)  # Array of field information
 
 # Iterate through fields
-schema.fields.for_each(field => {
-    print("${field.name}: ${field.type}${field.required ? ' (required)' }");
-});
-"`"
+for field in schema.fields:
+    var required_text = " (required)" if field.get("required", false) else ""
+    print(field.name + ": " + field.type + required_text)
+```
 
 ### Using Collection ID
 
-"`"javascript
+```gdscript
 # Get schema for a collection by ID
-const schema = await pb.collections.getSchema('_pbc_base_123');
+var schema = await pb.collections.get_schema("_pbc_base_123")
 
-print(schema.name);  # "demo1"
-"`"
+if schema is ClientResponseError:
+    push_error("Failed to get schema: " + schema.to_string())
+    return
+
+print(schema.name)  # "demo1"
+```
 
 ### Handling Different Collection Types
 
-"`"javascript
+```gdscript
 # Base collection
-const baseSchema = await pb.collections.getSchema('demo1');
-print(baseSchema.type);  # "base"
+var base_schema = await pb.collections.get_schema("demo1")
+if not base_schema is ClientResponseError:
+    print(base_schema.type)  # "base"
 
 # Auth collection
-const authSchema = await pb.collections.getSchema('users');
-print(authSchema.type);  # "auth"
+var auth_schema = await pb.collections.get_schema("users")
+if not auth_schema is ClientResponseError:
+    print(auth_schema.type)  # "auth"
 
 # View collection
-const viewSchema = await pb.collections.getSchema('view1');
-print(viewSchema.type);  # "view"
-"`"
+var view_schema = await pb.collections.get_schema("view1")
+if not view_schema is ClientResponseError:
+    print(view_schema.type)  # "view"
+```
 
 ### Error Handling
 
-"`"javascript
-try {
-    const schema = await pb.collections.getSchema('nonexistent');
-} catch (error) {
-    if (error.status === 404) {
-        print('Collection not found');
-    } else {
-        push_error('Error:', error);
-    }
-}
-"`"
+```gdscript
+var schema = await pb.collections.get_schema("nonexistent")
+
+if schema is ClientResponseError:
+    if schema.status == 404:
+        print("Collection not found")
+    else:
+        push_error("Error: " + schema.to_string())
+```
 
 ## Get All Collection Schemas
 
 Retrieves the schema (fields and types) for all collections in the system.
 
-### Method Signature
-
-"`"typescript
-getAllSchemas(options?: CommonOptions): Promise<{ collections}>
-"`"
-
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Get schemas for all collections
-const result = await pb.collections.getAllSchemas();
+var result = await pb.collections.get_all_schemas()
 
-print(result.collections);  # Array of all collection schemas
+if result is ClientResponseError:
+    push_error("Failed to get schemas: " + result.to_string())
+    return
+
+print(result.collections)  # Array of all collection schemas
 
 # Iterate through all collections
-result.collections.for_each(collection => {
-    print("Collection} (${collection.type})");
-    print("Fields: ${collection.fields.length}");
+for collection in result.collections:
+    print("Collection: " + collection.name + " (" + collection.type + ")")
+    print("Fields: ", collection.fields.size())
     
     # List all fields
-    collection.fields.for_each(field => {
-        print("  - ${field.name}: ${field.type}");
-    });
-});
-"`"
+    for field in collection.fields:
+        print("  - " + field.name + ": " + field.type)
+```
 
 ### Filtering Collections by Type
 
-"`"javascript
-const result = await pb.collections.getAllSchemas();
+```gdscript
+var result = await pb.collections.get_all_schemas()
+
+if result is ClientResponseError:
+    push_error("Failed to get schemas: " + result.to_string())
+    return
 
 # Filter to only base collections
-const baseCollections = result.collections.filter(c => c.type === 'base');
+var base_collections = []
+for c in result.collections:
+    if c.type == "base":
+        base_collections.append(c)
 
 # Filter to only auth collections
-const authCollections = result.collections.filter(c => c.type === 'auth');
+var auth_collections = []
+for c in result.collections:
+    if c.type == "auth":
+        auth_collections.append(c)
 
 # Filter to only view collections
-const viewCollections = result.collections.filter(c => c.type === 'view');
-"`"
+var view_collections = []
+for c in result.collections:
+    if c.type == "view":
+        view_collections.append(c)
+```
 
 ### Building a Field Index
 
-"`"javascript
+```gdscript
 # Build a map of all field names and types across all collections
-const result = await pb.collections.getAllSchemas();
+var result = await pb.collections.get_all_schemas()
 
-const fieldIndex = new Map();
+if result is ClientResponseError:
+    push_error("Failed to get schemas: " + result.to_string())
+    return
 
-result.collections.for_each(collection => {
-    collection.fields.for_each(field => {
-        const key = "${collection.name}.${field.name}";
-        fieldIndex.set(key, {
-            collection: collection.name,
-            collectionType: collection.type,
-            fieldName: field.name,
-            fieldType: field.type,
-            required: field.required || false,
-            system: field.system || false,
-            hidden: field.hidden || false,
-        });
-    });
-});
+var field_index = {}
+
+for collection in result.collections:
+    for field in collection.fields:
+        var key = collection.name + "." + field.name
+        field_index[key] = {
+            "collection": collection.name,
+            "collectionType": collection.type,
+            "fieldName": field.name,
+            "fieldType": field.type,
+            "required": field.get("required", false),
+            "system": field.get("system", false),
+            "hidden": field.get("hidden", false),
+        }
 
 # Use the index
-print(fieldIndex.get('demo1.title'));  # Field information
-"`"
+print(field_index.get("demo1.title", {}))  # Field information
+```
 
 ## Complete Examples
 
 ### Example 1: AI System Understanding Collection Structure
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#127.0.0.1:8090\")
-await pb.admins.authWithPassword('admin@example.com', 'password');
+var pb = BosBase.new("http://127.0.0.1:8090")
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
 
 # Get all collection schemas for system understanding
-const result = await pb.collections.getAllSchemas();
+var result = await pb.collections.get_all_schemas()
+
+if result is ClientResponseError:
+    push_error("Failed to get schemas: " + result.to_string())
+    return
 
 # Create a comprehensive system overview
-const systemOverview = result.collections.map(collection => ({
-    name: collection.name,
-    type: collection.type,
-    fields: collection.fields.map(field => ({
-        name: field.name,
-        type: field.type,
-        required: field.required || false,
-    })),
-}));
+var system_overview = []
+for collection in result.collections:
+    var fields = []
+    for field in collection.fields:
+        fields.append({
+            "name": field.name,
+            "type": field.type,
+            "required": field.get("required", false),
+        })
+    
+    system_overview.append({
+        "name": collection.name,
+        "type": collection.type,
+        "fields": fields,
+    })
 
-print('System Collections Overview:');
-systemOverview.for_each(collection => {
-    print("\n${collection.name} (${collection.type}):");
-    collection.fields.for_each(field => {
-        print("  ${field.name}: ${field.type}${field.required ? ' [required]' }");
-    });
-});
-"`"
+print("System Collections Overview:")
+for collection in system_overview:
+    print("\n" + collection.name + " (" + collection.type + "):")
+    for field in collection.fields:
+        var required_text = " [required]" if field.required else ""
+        print("  " + field.name + ": " + field.type + required_text)
+```
 
 ### Example 2: Validating Field Existence Before Query
 
-"`"javascript
+```gdscript
 # Check if a field exists before querying
-async function checkFieldExists(collectionName, fieldName) {
-    try {
-        const schema = await pb.collections.getSchema(collectionName);
-        return schema.fields.some(field => field.name === fieldName);
-    } catch (error) {
-        return false;
-    }
-}
+func check_field_exists(collection_name: String, field_name: String) -> bool:
+    var schema = await pb.collections.get_schema(collection_name)
+    
+    if schema is ClientResponseError:
+        return false
+    
+    for field in schema.fields:
+        if field.name == field_name:
+            return true
+    
+    return false
 
 # Usage
-const hasTitleField = await checkFieldExists('demo1', 'title');
-if (hasTitleField) {
+var has_title_field = await check_field_exists("demo1", "title")
+if has_title_field:
     # Safe to query the field
-    const records = await pb.collection('demo1').getList(1, 20, {
-        fields: 'id,title',
-    });
-}
-"`"
+    var records = await pb.collection("demo1").get_list(1, 20, {
+        "fields": "id,title"
+    })
+```
 
 ### Example 3: Dynamic Form Generation
 
-"`"javascript
+```gdscript
 # Generate form fields based on collection schema
-async function generateFormFields(collectionName) {
-    const schema = await pb.collections.getSchema(collectionName);
+func generate_form_fields(collection_name: String) -> Array:
+    var schema = await pb.collections.get_schema(collection_name)
     
-    return schema.fields
-        .filter(field => !field.system && !field.hidden)  # Exclude system/hidden fields
-        .map(field => ({
-            name: field.name,
-            type: field.type,
-            required: field.required || false,
-            label: field.name.charAt(0).toUpperCase() + field.name.slice(1),
-        }));
-}
+    if schema is ClientResponseError:
+        push_error("Failed to get schema: " + schema.to_string())
+        return []
+    
+    var form_fields = []
+    
+    for field in schema.fields:
+        # Exclude system/hidden fields
+        if field.get("system", false) or field.get("hidden", false):
+            continue
+        
+        var label = field.name.capitalize()
+        form_fields.append({
+            "name": field.name,
+            "type": field.type,
+            "required": field.get("required", false),
+            "label": label,
+        })
+    
+    return form_fields
 
 # Usage
-const formFields = await generateFormFields('demo1');
-print('Form Fields:', formFields);
+var form_fields = await generate_form_fields("demo1")
+print("Form Fields: ", form_fields)
 # Output: [
-#   { "name": 'title', "type": 'text', "required": true, label},
-#   { "name": 'description', "type": 'text', "required": false, label},
+#   { "name": "title", "type": "text", "required": true, "label": "Title" },
+#   { "name": "description", "type": "text", "required": false, "label": "Description" },
 #   ...
 # ]
-"`"
+```
 
 ### Example 4: Schema Comparison
 
-"`"javascript
+```gdscript
 # Compare schemas between two collections
-async function compareSchemas(collection1, collection2) {
-    const [schema1, schema2] = await Promise.all([
-        pb.collections.getSchema(collection1),
-        pb.collections.getSchema(collection2),
-    ]);
+func compare_schemas(collection1: String, collection2: String) -> Dictionary:
+    var schema1 = await pb.collections.get_schema(collection1)
+    var schema2 = await pb.collections.get_schema(collection2)
     
-    const fields1 = new Set(schema1.fields.map(f => f.name));
-    const fields2 = new Set(schema2.fields.map(f => f.name));
+    if schema1 is ClientResponseError or schema2 is ClientResponseError:
+        push_error("Failed to get schemas")
+        return {}
+    
+    var fields1 = []
+    var fields2 = []
+    
+    for field in schema1.fields:
+        fields1.append(field.name)
+    
+    for field in schema2.fields:
+        fields2.append(field.name)
+    
+    var common = []
+    var only_in_1 = []
+    var only_in_2 = []
+    
+    # Find common fields
+    for field_name in fields1:
+        if field_name in fields2:
+            common.append(field_name)
+        else:
+            only_in_1.append(field_name)
+    
+    # Find fields only in collection2
+    for field_name in fields2:
+        if not field_name in fields1:
+            only_in_2.append(field_name)
     
     return {
-        common: [...fields1].filter(f => fields2.has(f)),
-        onlyIn1: [...fields1].filter(f => !fields2.has(f)),
-        onlyIn2: [...fields2].filter(f => !fields1.has(f)),
-    };
-}
+        "common": common,
+        "onlyIn1": only_in_1,
+        "onlyIn2": only_in_2,
+    }
 
 # Usage
-const comparison = await compareSchemas('demo1', 'demo2');
-print('Common fields:', comparison.common);
-print('Only in demo1:', comparison.onlyIn1);
-print('Only in demo2:', comparison.onlyIn2);
-"`"
-
-### Example 5: Building TypeScript Type Definitions
-
-"`"javascript
-# Generate TypeScript interface from collection schema
-async function generateTypeScriptInterface(collectionName) {
-    const schema = await pb.collections.getSchema(collectionName);
-    
-    const fieldDefinitions = schema.fields.map(field => {
-        let tsType = 'string';
-        
-        switch (field.type) {
-            case 'number':
-                tsType = 'number';
-                break;
-            case 'bool':
-                tsType = 'boolean';
-                break;
-            case 'date':
-            case 'autodate':
-                tsType = 'Date | string';
-                break;
-            case 'json':
-                tsType = 'any';
-                break;
-            case 'file':
-                tsType = 'string | string[]';
-                break;
-            case 'select':
-                tsType = 'string | string[]';
-                break;
-            case 'relation':
-                tsType = 'string | string[]';
-                break;
-            default}
-        
-        return "  ${field.name}${field.required ? '' }: ${tsType};";
-    }).join('\n');
-    
-    return "interface ${schema.name.charAt(0).toUpperCase() + schema.name.slice(1)} {\n${fieldDefinitions}\n}";
-}
-
-# Usage
-const tsInterface = await generateTypeScriptInterface('demo1');
-print(tsInterface);
-"`"
+var comparison = await compare_schemas("demo1", "demo2")
+print("Common fields: ", comparison.common)
+print("Only in demo1: ", comparison.onlyIn1)
+print("Only in demo2: ", comparison.onlyIn2)
+```
 
 ## Response Structure
 
 ### Single Collection Schema Response
 
-"`"json
+```json
 {
   "name": "demo1",
   "type": "base",
@@ -365,43 +384,49 @@ print(tsInterface);
       "type": "text",
       "required": true,
       "system": true,
-      "hidden"},
+      "hidden": false
+    },
     {
       "name": "title",
       "type": "text",
       "required": true,
       "system": false,
-      "hidden"},
+      "hidden": false
+    },
     {
       "name": "description",
       "type": "text",
       "required": false,
       "system": false,
-      "hidden"}
+      "hidden": false
+    }
   ]
 }
-"`"
+```
 
 ### All Collections Schemas Response
 
-"`"json
+```json
 {
   "collections": [
     {
       "name": "demo1",
       "type": "base",
-      "fields"},
+      "fields": [...]
+    },
     {
       "name": "users",
       "type": "auth",
-      "fields"},
+      "fields": [...]
+    },
     {
       "name": "view1",
       "type": "view",
-      "fields"}
+      "fields": [...]
+    }
   ]
 }
-"`"
+```
 
 ## Use Cases
 
@@ -428,37 +453,32 @@ Create dynamic forms, tables, or interfaces based on collection field definition
 - **Lightweight**: Schema queries return only essential field information, not full collection definitions
 - **Efficient**: Much faster than fetching full collection objects
 - **Cached**: Results can be cached for better performance
-- **Batch**: Use "getAllSchemas()" to get all schemas in a single request
+- **Batch**: Use `get_all_schemas()` to get all schemas in a single request
 
 ## Error Handling
 
-"`"javascript
-try {
-    const schema = await pb.collections.getSchema('demo1');
-} catch (error) {
-    switch (error.status) {
-        case 401:
-            push_error('Authentication required');
-            break;
-        case 403:
-            push_error('Superuser access required');
-            break;
-        case 404:
-            push_error('Collection not found');
-            break;
-        default:
-            push_error('Unexpected error:', error);
-    }
-}
-"`"
+```gdscript
+var schema = await pb.collections.get_schema("demo1")
+
+if schema is ClientResponseError:
+    match schema.status:
+        401:
+            push_error("Authentication required")
+        403:
+            push_error("Superuser access required")
+        404:
+            push_error("Collection not found")
+        _:
+            push_error("Unexpected error: " + schema.to_string())
+```
 
 ## Best Practices
 
 1. **Cache Results**: Schema information rarely changes, so cache results when appropriate
 2. **Error Handling**: Always handle 404 errors for non-existent collections
 3. **Filter System Fields**: When building UI, filter out system and hidden fields
-4. **Batch Queries**: Use "getAllSchemas()` when you need multiple collection schemas
-5. **Type Safety**: Use TypeScript types for better type safety and IDE support
+4. **Batch Queries**: Use `get_all_schemas()` when you need multiple collection schemas
+5. **Type Safety**: Validate field types when working with dynamic schemas
 
 ## Related Documentation
 

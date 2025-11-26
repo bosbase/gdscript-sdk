@@ -11,8 +11,8 @@ The Crons API provides endpoints for viewing and manually triggering scheduled c
 - Built-in system jobs for maintenance tasks
 
 **Backend Endpoints:**
-- "GET /api/crons" - List cron jobs
-- "POST /api/crons/{jobId}" - Run cron job
+- `GET /api/crons` - List cron jobs
+- `POST /api/crons/{jobId}` - Run cron job
 
 **Note**: All Crons API operations require superuser authentication.
 
@@ -20,14 +20,17 @@ The Crons API provides endpoints for viewing and manually triggering scheduled c
 
 All Crons API operations require superuser authentication:
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#127.0.0.1:8090\")
+var pb = BosBase.new("http://127.0.0.1:8090")
 
 # Authenticate as superuser
-await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
-"`"
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
+```
 
 ## List Cron Jobs
 
@@ -35,28 +38,33 @@ Returns a list of all registered cron jobs with their IDs and schedule expressio
 
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Get all cron jobs
-const jobs = await pb.crons.getFullList();
+var jobs = await pb.crons.get_full_list()
 
-print(jobs);
+if jobs is ClientResponseError:
+    push_error("Failed to get cron jobs: " + jobs.to_string())
+    return
+
+print(jobs)
 # [
-#   { "id": "__pbLogsCleanup__", expression},
-#   { "id": "__pbDBOptimize__", expression},
-#   { "id": "__pbMFACleanup__", expression},
-#   { "id": "__pbOTPCleanup__", expression}
+#   { "id": "__pbLogsCleanup__", "expression": "0 */6 * * *" },
+#   { "id": "__pbDBOptimize__", "expression": "0 0 * * *" },
+#   { "id": "__pbMFACleanup__", "expression": "0 * * * *" },
+#   { "id": "__pbOTPCleanup__", "expression": "0 * * * *" }
 # ]
-"`"
+```
 
 ### Cron Job Structure
 
 Each cron job contains:
 
-"`"javascript
+```gdscript
 {
-  "id": string,        # Unique identifier for the job
-  expression}
-"`"
+    "id": String,        # Unique identifier for the job
+    "expression": String  # Cron expression defining the schedule
+}
+```
 
 ### Built-in System Jobs
 
@@ -64,30 +72,43 @@ The following cron jobs are typically registered by default:
 
 | Job ID | Expression | Description | Schedule |
 |--------|-----------|-------------|----------|
-| "__pbLogsCleanup__" | "0 */6 * * *" | Cleans up old log entries | Every 6 hours |
-| "__pbDBOptimize__" | "0 0 * * *" | Optimizes database | Daily at midnight |
-| "__pbMFACleanup__" | "0 * * * *" | Cleans up expired MFA records | Every hour |
-| "__pbOTPCleanup__" | "0 * * * *" | Cleans up expired OTP codes | Every hour |
+| `__pbLogsCleanup__` | `0 */6 * * *` | Cleans up old log entries | Every 6 hours |
+| `__pbDBOptimize__` | `0 0 * * *` | Optimizes database | Daily at midnight |
+| `__pbMFACleanup__` | `0 * * * *` | Cleans up expired MFA records | Every hour |
+| `__pbOTPCleanup__` | `0 * * * *` | Cleans up expired OTP codes | Every hour |
 
 ### Working with Cron Jobs
 
-"`"javascript
+```gdscript
 # List all cron jobs
-const jobs = await pb.crons.getFullList();
+var jobs = await pb.crons.get_full_list()
+
+if jobs is ClientResponseError:
+    push_error("Failed to get cron jobs: " + jobs.to_string())
+    return
 
 # Find a specific job
-const logsCleanup = jobs.find(job => job.id === '__pbLogsCleanup__');
+var logs_cleanup = null
+for job in jobs:
+    if job.id == "__pbLogsCleanup__":
+        logs_cleanup = job
+        break
 
-if (logsCleanup) {
-  print("Logs cleanup runs}");
-}
+if logs_cleanup:
+    print("Logs cleanup runs: ", logs_cleanup.expression)
 
 # Filter system jobs
-const systemJobs = jobs.filter(job => job.id.startsWith('__pb'));
+var system_jobs = []
+for job in jobs:
+    if job.id.begins_with("__pb"):
+        system_jobs.append(job)
 
 # Filter custom jobs
-const customJobs = jobs.filter(job => !job.id.startsWith('__pb'));
-"`"
+var custom_jobs = []
+for job in jobs:
+    if not job.id.begins_with("__pb"):
+        custom_jobs.append(job)
+```
 
 ## Run Cron Job
 
@@ -95,44 +116,57 @@ Manually trigger a cron job to execute immediately.
 
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Run a specific cron job
-await pb.crons.run('__pbLogsCleanup__');
-"`"
+var result = await pb.crons.run("__pbLogsCleanup__")
+if result is ClientResponseError:
+    push_error("Failed to run cron job: " + result.to_string())
+    return
+
+print("Cron job triggered successfully")
+```
 
 ### Use Cases
 
-"`"javascript
+```gdscript
 # Trigger logs cleanup manually
-async function cleanupLogsNow() {
-  await pb.crons.run('__pbLogsCleanup__');
-  print('Logs cleanup triggered');
-}
+func cleanup_logs_now() -> void:
+    var result = await pb.crons.run("__pbLogsCleanup__")
+    if result is ClientResponseError:
+        push_error("Failed to trigger logs cleanup: " + result.to_string())
+        return
+    print("Logs cleanup triggered")
 
 # Trigger database optimization
-async function optimizeDatabase() {
-  await pb.crons.run('__pbDBOptimize__');
-  print('Database optimization triggered');
-}
+func optimize_database() -> void:
+    var result = await pb.crons.run("__pbDBOptimize__")
+    if result is ClientResponseError:
+        push_error("Failed to trigger database optimization: " + result.to_string())
+        return
+    print("Database optimization triggered")
 
 # Trigger MFA cleanup
-async function cleanupMFA() {
-  await pb.crons.run('__pbMFACleanup__');
-  print('MFA cleanup triggered');
-}
+func cleanup_mfa() -> void:
+    var result = await pb.crons.run("__pbMFACleanup__")
+    if result is ClientResponseError:
+        push_error("Failed to trigger MFA cleanup: " + result.to_string())
+        return
+    print("MFA cleanup triggered")
 
 # Trigger OTP cleanup
-async function cleanupOTP() {
-  await pb.crons.run('__pbOTPCleanup__');
-  print('OTP cleanup triggered');
-}
-"`"
+func cleanup_otp() -> void:
+    var result = await pb.crons.run("__pbOTPCleanup__")
+    if result is ClientResponseError:
+        push_error("Failed to trigger OTP cleanup: " + result.to_string())
+        return
+    print("OTP cleanup triggered")
+```
 
 ## Cron Expression Format
 
 Cron expressions use the standard 5-field format:
 
-"`"
+```
 * * * * *
 │ │ │ │ │
 │ │ │ │ └─── Day of week (0-7, 0 or 7 is Sunday)
@@ -140,33 +174,33 @@ Cron expressions use the standard 5-field format:
 │ │ └─────── Day of month (1-31)
 │ └───────── Hour (0-23)
 └─────────── Minute (0-59)
-"`"
+```
 
 ### Common Patterns
 
 | Expression | Description |
 |------------|-------------|
-| "0 * * * *" | Every hour at minute 0 |
-| "0 */6 * * *" | Every 6 hours |
-| "0 0 * * *" | Daily at midnight |
-| "0 0 * * 0" | Weekly on Sunday at midnight |
-| "0 0 1 * *" | Monthly on the 1st at midnight |
-| "*/30 * * * *" | Every 30 minutes |
-| "0 9 * * 1-5" | Weekdays at 9 AM |
+| `0 * * * *` | Every hour at minute 0 |
+| `0 */6 * * *` | Every 6 hours |
+| `0 0 * * *` | Daily at midnight |
+| `0 0 * * 0` | Weekly on Sunday at midnight |
+| `0 0 1 * *` | Monthly on the 1st at midnight |
+| `*/30 * * * *` | Every 30 minutes |
+| `0 9 * * 1-5` | Weekdays at 9 AM |
 
 ### Supported Macros
 
 | Macro | Equivalent Expression | Description |
 |-------|----------------------|-------------|
-| "@yearly" or "@annually" | "0 0 1 1 *" | Once a year |
-| "@monthly" | "0 0 1 * *" | Once a month |
-| "@weekly" | "0 0 * * 0" | Once a week |
-| "@daily" or "@midnight" | "0 0 * * *" | Once a day |
-| "@hourly" | "0 * * * *" | Once an hour |
+| `@yearly` or `@annually` | `0 0 1 1 *` | Once a year |
+| `@monthly` | `0 0 1 * *` | Once a month |
+| `@weekly` | `0 0 * * 0` | Once a week |
+| `@daily` or `@midnight` | `0 0 * * *` | Once a day |
+| `@hourly` | `0 * * * *` | Once an hour |
 
 ### Expression Examples
 
-"`"javascript
+```gdscript
 # Every hour
 "0 * * * *"
 
@@ -188,258 +222,225 @@ Cron expressions use the standard 5-field format:
 # Using macros
 "@daily"   # Same as "0 0 * * *"
 "@hourly"  # Same as "0 * * * *"
-"`"
+```
 
 ## Complete Examples
 
 ### Example 1: Cron Job Monitor
 
-"`"javascript
-class CronMonitor {
-  constructor(pb) {
-    this.pb = pb;
-  }
+```gdscript
+class_name CronMonitor
 
-  async listAllJobs() {
-    const jobs = await this.pb.crons.getFullList();
+var pb: BosBase
+
+func list_all_jobs() -> Array:
+    var jobs = await pb.crons.get_full_list()
     
-    print("Found ${jobs.length} cron jobs:");
-    jobs.for_each(job => {
-      print("  - ${job.id}: ${job.expression}");
-    });
+    if jobs is ClientResponseError:
+        push_error("Failed to get cron jobs: " + jobs.to_string())
+        return []
     
-    return jobs;
-  }
+    print("Found %d cron jobs:" % jobs.size())
+    for job in jobs:
+        print("  - %s: %s" % [job.id, job.expression])
+    
+    return jobs
 
-  async runJob(jobId) {
-    try {
-      await this.pb.crons.run(jobId);
-      print("Successfully triggered}");
-      return true;
-    } catch (error) {
-      push_error("Failed to run ${jobId}:", error);
-      return false;
-    }
-  }
+func run_job(job_id: String) -> bool:
+    var result = await pb.crons.run(job_id)
+    if result is ClientResponseError:
+        push_error("Failed to run %s: %s" % [job_id, result.to_string()])
+        return false
+    
+    print("Successfully triggered: ", job_id)
+    return true
 
-  async runMaintenanceJobs() {
-    const maintenanceJobs = [
-      '__pbLogsCleanup__',
-      '__pbDBOptimize__',
-      '__pbMFACleanup__',
-      '__pbOTPCleanup__',
-    ];
-
-    for (const jobId of maintenanceJobs) {
-      print("Running ${jobId}...");
-      await this.runJob(jobId);
-      # Wait a bit between jobs
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
-}
+func run_maintenance_jobs() -> void:
+    var maintenance_jobs = [
+        "__pbLogsCleanup__",
+        "__pbDBOptimize__",
+        "__pbMFACleanup__",
+        "__pbOTPCleanup__",
+    ]
+    
+    for job_id in maintenance_jobs:
+        print("Running %s..." % job_id)
+        await run_job(job_id)
+        # Wait a bit between jobs
+        await Engine.get_main_loop().process_frame
+        await Engine.get_main_loop().process_frame
 
 # Usage
-const monitor = new CronMonitor(pb);
-await monitor.listAllJobs();
-await monitor.runMaintenanceJobs();
-"`"
+var monitor = CronMonitor.new()
+monitor.pb = pb
+await monitor.list_all_jobs()
+await monitor.run_maintenance_jobs()
+```
 
 ### Example 2: Cron Job Health Check
 
-"`"javascript
-async function checkCronJobs() {
-  try {
-    const jobs = await pb.crons.getFullList();
+```gdscript
+func check_cron_jobs() -> bool:
+    var jobs = await pb.crons.get_full_list()
     
-    const expectedJobs = [
-      '__pbLogsCleanup__',
-      '__pbDBOptimize__',
-      '__pbMFACleanup__',
-      '__pbOTPCleanup__',
-    ];
+    if jobs is ClientResponseError:
+        push_error("Failed to check cron jobs: " + jobs.to_string())
+        return false
     
-    const missingJobs = expectedJobs.filter(
-      expectedId => !jobs.find(job => job.id === expectedId)
-    );
+    var expected_jobs = [
+        "__pbLogsCleanup__",
+        "__pbDBOptimize__",
+        "__pbMFACleanup__",
+        "__pbOTPCleanup__",
+    ]
     
-    if (missingJobs.length > 0) {
-      console.warn('Missing expected cron jobs:', missingJobs);
-      return false;
-    }
+    var missing_jobs = []
+    for expected_id in expected_jobs:
+        var found = false
+        for job in jobs:
+            if job.id == expected_id:
+                found = true
+                break
+        if not found:
+            missing_jobs.append(expected_id)
     
-    print('All expected cron jobs are registered');
-    return true;
-  } catch (error) {
-    push_error('Failed to check cron jobs:', error);
-    return false;
-  }
-}
-"`"
+    if missing_jobs.size() > 0:
+        push_warning("Missing expected cron jobs: ", missing_jobs)
+        return false
+    
+    print("All expected cron jobs are registered")
+    return true
+```
 
 ### Example 3: Manual Maintenance Script
 
-"`"javascript
-async function performMaintenance() {
-  print('Starting maintenance tasks...');
-  
-  # Cleanup old logs
-  print('1. Cleaning up old logs...');
-  await pb.crons.run('__pbLogsCleanup__');
-  
-  # Cleanup expired MFA records
-  print('2. Cleaning up expired MFA records...');
-  await pb.crons.run('__pbMFACleanup__');
-  
-  # Cleanup expired OTP codes
-  print('3. Cleaning up expired OTP codes...');
-  await pb.crons.run('__pbOTPCleanup__');
-  
-  # Optimize database (run last as it may take longer)
-  print('4. Optimizing database...');
-  await pb.crons.run('__pbDBOptimize__');
-  
-  print('Maintenance tasks completed');
-}
-"`"
+```gdscript
+func perform_maintenance() -> void:
+    print("Starting maintenance tasks...")
+    
+    # Cleanup old logs
+    print("1. Cleaning up old logs...")
+    await pb.crons.run("__pbLogsCleanup__")
+    
+    # Cleanup expired MFA records
+    print("2. Cleaning up expired MFA records...")
+    await pb.crons.run("__pbMFACleanup__")
+    
+    # Cleanup expired OTP codes
+    print("3. Cleaning up expired OTP codes...")
+    await pb.crons.run("__pbOTPCleanup__")
+    
+    # Optimize database (run last as it may take longer)
+    print("4. Optimizing database...")
+    await pb.crons.run("__pbDBOptimize__")
+    
+    print("Maintenance tasks completed")
+```
 
 ### Example 4: Cron Job Status Dashboard
 
-"`"javascript
-async function getCronStatus() {
-  const jobs = await pb.crons.getFullList();
-  
-  const status = {
-    total: jobs.length,
-    system: jobs.filter(job => job.id.startsWith('__pb')).length,
-    custom: jobs.filter(job => !job.id.startsWith('__pb')).length,
-    jobs: jobs.map(job => ({
-      id: job.id,
-      expression: job.expression,
-      type: job.id.startsWith('__pb') ? 'system' : 'custom',
-    })),
-  };
-  
-  return status;
-}
-
-# Usage
-const status = await getCronStatus();
-print("Total: ${status.total}, System: ${status.system}, Custom: ${status.custom}");
-"`"
-
-### Example 5: Scheduled Maintenance Trigger
-
-"`"javascript
-# Function to trigger maintenance jobs on a schedule
-class ScheduledMaintenance {
-  constructor(pb, intervalMinutes = 60) {
-    this.pb = pb;
-    this.intervalMinutes = intervalMinutes;
-    this.intervalId = null;
-  }
-
-  start() {
-    # Run immediately
-    this.runMaintenance();
+```gdscript
+func get_cron_status() -> Dictionary:
+    var jobs = await pb.crons.get_full_list()
     
-    # Then run on schedule
-    this.intervalId = setIntervalfunc(():{
-      this.runMaintenance();
-    }, this.intervalMinutes * 60 * 1000);
-  }
-
-  stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+    if jobs is ClientResponseError:
+        push_error("Failed to get cron jobs: " + jobs.to_string())
+        return {}
+    
+    var system_count = 0
+    var custom_count = 0
+    var job_list = []
+    
+    for job in jobs:
+        var is_system = job.id.begins_with("__pb")
+        if is_system:
+            system_count += 1
+        else:
+            custom_count += 1
+        
+        job_list.append({
+            "id": job.id,
+            "expression": job.expression,
+            "type": "system" if is_system else "custom",
+        })
+    
+    return {
+        "total": jobs.size(),
+        "system": system_count,
+        "custom": custom_count,
+        "jobs": job_list,
     }
-  }
-
-  async runMaintenance() {
-    try {
-      print('Running scheduled maintenance...');
-      
-      # Run cleanup jobs
-      await pb.crons.run('__pbLogsCleanup__');
-      await pb.crons.run('__pbMFACleanup__');
-      await pb.crons.run('__pbOTPCleanup__');
-      
-      print('Scheduled maintenance completed');
-    } catch (error) {
-      push_error('Maintenance failed:', error);
-    }
-  }
-}
 
 # Usage
-const maintenance = new ScheduledMaintenance(pb, 60); # Every hour
-maintenance.start();
-"`"
+var status = await get_cron_status()
+print("Total: %d, System: %d, Custom: %d" % [status.total, status.system, status.custom])
+```
 
-### Example 6: Cron Job Testing
+### Example 5: Cron Job Testing
 
-"`"javascript
-async function testCronJob(jobId) {
-  print("Testing cron job}");
-  
-  try {
+```gdscript
+func test_cron_job(job_id: String) -> bool:
+    print("Testing cron job: ", job_id)
+    
     # Check if job exists
-    const jobs = await pb.crons.getFullList();
-    const job = jobs.find(j => j.id === jobId);
+    var jobs = await pb.crons.get_full_list()
+    if jobs is ClientResponseError:
+        push_error("Failed to get cron jobs: " + jobs.to_string())
+        return false
     
-    if (!job) {
-      push_error("Cron job ${jobId} not found");
-      return false;
-    }
+    var job = null
+    for j in jobs:
+        if j.id == job_id:
+            job = j
+            break
     
-    print("Job found with expression: ${job.expression}");
+    if not job:
+        push_error("Cron job %s not found" % job_id)
+        return false
+    
+    print("Job found with expression: ", job.expression)
     
     # Run the job
-    print('Triggering job...');
-    await pb.crons.run(jobId);
+    print("Triggering job...")
+    var result = await pb.crons.run(job_id)
+    if result is ClientResponseError:
+        push_error("Failed to test cron job: " + result.to_string())
+        return false
     
-    print('Job triggered successfully');
-    return true;
-  } catch (error) {
-    push_error("Failed to test cron job:", error);
-    return false;
-  }
-}
+    print("Job triggered successfully")
+    return true
 
 # Test a specific job
-await testCronJob('__pbLogsCleanup__');
-"`"
+await test_cron_job("__pbLogsCleanup__")
+```
 
 ## Error Handling
 
-"`"javascript
-try {
-  const jobs = await pb.crons.getFullList();
-} catch (error) {
-  if (error.status === 401) {
-    push_error('Not authenticated');
-  } else if (error.status === 403) {
-    push_error('Not a superuser');
-  } else {
-    push_error('Unexpected error:', error);
-  }
-}
+```gdscript
+var jobs = await pb.crons.get_full_list()
 
-try {
-  await pb.crons.run('__pbLogsCleanup__');
-} catch (error) {
-  if (error.status === 401) {
-    push_error('Not authenticated');
-  } else if (error.status === 403) {
-    push_error('Not a superuser');
-  } else if (error.status === 404) {
-    push_error('Cron job not found');
-  } else {
-    push_error('Unexpected error:', error);
-  }
-}
-"`"
+if jobs is ClientResponseError:
+    match jobs.status:
+        401:
+            push_error("Not authenticated")
+        403:
+            push_error("Not a superuser")
+        _:
+            push_error("Unexpected error: " + jobs.to_string())
+
+# Run cron job with error handling
+var result = await pb.crons.run("__pbLogsCleanup__")
+if result is ClientResponseError:
+    match result.status:
+        401:
+            push_error("Not authenticated")
+        403:
+            push_error("Not a superuser")
+        404:
+            push_error("Cron job not found")
+        _:
+            push_error("Unexpected error: " + result.to_string())
+```
 
 ## Best Practices
 
@@ -458,7 +459,7 @@ try {
 - **Read-Only API**: The SDK API only allows listing and running jobs; adding/removing jobs must be done via backend hooks
 - **Asynchronous Execution**: Running a cron job triggers it asynchronously; the API returns immediately
 - **No Status**: The API doesn't provide execution status or history
-- **System Jobs**: Built-in system jobs (prefixed with "__pb") cannot be removed via the API
+- **System Jobs**: Built-in system jobs (prefixed with `__pb`) cannot be removed via the API
 
 ## Custom Cron Jobs
 
@@ -467,21 +468,10 @@ Custom cron jobs are typically registered through backend hooks (JavaScript VM p
 - **View** all registered jobs (both system and custom)
 - **Trigger** any registered job manually
 
-To add or remove cron jobs, you need to use the backend hook system:
-
-"`"javascript
-# In a backend hook file (pb_hooks/main.js)
-routerOnInitfunc((e):{
-  # Add custom cron job
-  cronAddfunc("myCustomJob", "0 */2 * * *", ():{
-    print("Custom job runs every 2 hours");
-    # Your custom logic here
-  });
-});
-"``
+To add or remove cron jobs, you need to use the backend hook system. This is configured on the backend/server side, not through the SDK.
 
 ## Related Documentation
 
 - [Collection API](./COLLECTION_API.md) - Collection management
 - [Logs API](./LOGS_API.md) - Log viewing and analysis
-- [Backups API](./BACKUPS_API.md) - Backup management (if available)
+- [Backups API](./BACKUPS_API.md) - Backup management

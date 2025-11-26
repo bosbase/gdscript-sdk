@@ -13,8 +13,8 @@ The File API provides endpoints for downloading and accessing files stored in co
 - Support for Range requests and caching
 
 **Backend Endpoints:**
-- "GET /api/files/{collection}/{recordId}/{filename}" - Download/fetch file
-- "POST /api/files/token" - Generate protected file token
+- `GET /api/files/{collection}/{recordId}/{filename}` - Download/fetch file
+- `POST /api/files/token` - Generate protected file token
 
 ## Download / Fetch File
 
@@ -22,47 +22,65 @@ Downloads a single file resource from a record.
 
 ### Basic Usage
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#127.0.0.1:8090\")
+var pb = BosBase.new("http://127.0.0.1:8090")
 
 # Get a record with a file field
-const record = await pb.collection('posts').getOne('RECORD_ID');
+var record = await pb.collection("posts").get_one("RECORD_ID")
+
+if record is ClientResponseError:
+    push_error("Failed to get record: " + record.to_string())
+    return
 
 # Get the file URL
-const fileUrl = pb.files.getURL(record, record.image);
+var file_url = pb.files.get_url(record, record.get("image", ""))
 
-# Use in HTML
-const img = document.createElement('img');
-img.src = fileUrl;
-document.body.appendChild(img);
-"`"
+# In GDScript/Godot, you would typically use an HTTPRequest node
+# or download the file using HTTPClient
+print("File URL: ", file_url)
+```
 
 ### File URL Structure
 
 The file URL follows this pattern:
-"`"
+
+```
 /api/files/{collectionIdOrName}/{recordId}/{filename}
-"`"
+```
 
 Example:
-"`"
-http:#127.0.0.1:8090/api/files/posts/abc123/photo_xyz789.jpg
-"`"
+```
+http://127.0.0.1:8090/api/files/posts/abc123/photo_xyz789.jpg
+```
 
-### Using in HTML
+### Downloading Files in GDScript
 
-"`"html
-<!-- Direct image display -->
-<img src="http:#127.0.0.1:8090/api/files/posts/abc123/photo_xyz789.jpg" alt="Photo" />
+```gdscript
+func download_file(file_url: String, save_path: String) -> void:
+    var http_request = HTTPRequest.new()
+    add_child(http_request)
+    
+    http_request.request_completed.connect(_on_file_downloaded)
+    http_request.request(file_url)
+    
+    # Store save path for later use
+    http_request.set_meta("save_path", save_path)
 
-<!-- Download link -->
-<a href="http:#127.0.0.1:8090/api/files/posts/abc123/document.pdf" download>Download PDF</a>
-
-<!-- Video player -->
-<video src="http:#127.0.0.1:8090/api/files/posts/abc123/video.mp4" controls></video>
-"`"
+func _on_file_downloaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+    if response_code == 200:
+        var save_path = get_meta("save_path", "")
+        var file = FileAccess.open(save_path, FileAccess.WRITE)
+        if file:
+            file.store_buffer(body)
+            file.close()
+            print("File downloaded successfully")
+        else:
+            push_error("Failed to write file")
+    else:
+        push_error("Download failed with code: ", response_code)
+```
 
 ## Thumbnails
 
@@ -74,64 +92,49 @@ The following thumbnail formats are supported:
 
 | Format | Example | Description |
 |--------|---------|-------------|
-| "WxH" | "100x300" | Crop to WxH viewbox (from center) |
-| "WxHt" | "100x300t" | Crop to WxH viewbox (from top) |
-| "WxHb" | "100x300b" | Crop to WxH viewbox (from bottom) |
-| "WxHf" | "100x300f" | Fit inside WxH viewbox (without cropping) |
-| "0xH" | "0x300" | Resize to H height preserving aspect ratio |
-| "Wx0" | "100x0" | Resize to W width preserving aspect ratio |
+| `WxH` | `100x300` | Crop to WxH viewbox (from center) |
+| `WxHt` | `100x300t` | Crop to WxH viewbox (from top) |
+| `WxHb` | `100x300b` | Crop to WxH viewbox (from bottom) |
+| `WxHf` | `100x300f` | Fit inside WxH viewbox (without cropping) |
+| `0xH` | `0x300` | Resize to H height preserving aspect ratio |
+| `Wx0` | `100x0` | Resize to W width preserving aspect ratio |
 
 ### Using Thumbnails
 
-"`"javascript
+```gdscript
 # Get thumbnail URL
-const thumbUrl = pb.files.getURL(record, record.image, {
-  thumb});
+var thumb_url = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "100x100"
+})
 
 # Different thumbnail sizes
-const smallThumb = pb.files.getURL(record, record.image, {
-  thumb});
+var small_thumb = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "100x100"
+})
 
-const mediumThumb = pb.files.getURL(record, record.image, {
-  thumb});
+var medium_thumb = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "300x300"
+})
 
-const largeThumb = pb.files.getURL(record, record.image, {
-  thumb});
+var large_thumb = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "800x800"
+})
 
 # Fit thumbnail (no cropping)
-const fitThumb = pb.files.getURL(record, record.image, {
-  thumb});
+var fit_thumb = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "300x300f"
+})
 
 # Resize to specific width
-const widthThumb = pb.files.getURL(record, record.image, {
-  thumb});
+var width_thumb = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "400x0"
+})
 
 # Resize to specific height
-const heightThumb = pb.files.getURL(record, record.image, {
-  thumb});
-"`"
-
-### Thumbnail Examples in HTML
-
-"`"html
-<!-- Small thumbnail -->
-<img src="http:#127.0.0.1:8090/api/files/posts/abc123/photo.jpg?thumb=100x100" alt="Thumbnail" />
-
-<!-- Medium thumbnail with fit -->
-<img src="http:#127.0.0.1:8090/api/files/posts/abc123/photo.jpg?thumb=300x300f" alt="Photo" />
-
-<!-- Responsive thumbnail -->
-<img 
-  src="http:#127.0.0.1:8090/api/files/posts/abc123/photo.jpg?thumb=400x400" 
-  srcset="
-    http:#127.0.0.1:8090/api/files/posts/abc123/photo.jpg?thumb=200x200 200w,
-    http:#127.0.0.1:8090/api/files/posts/abc123/photo.jpg?thumb=400x400 400w,
-    http:#127.0.0.1:8090/api/files/posts/abc123/photo.jpg?thumb=800x800 800w
-  "
-  sizes="(max-width: 600px) 200px, (max-width: 1200px) 400px, 800px"
-  alt="Responsive image"
-/>
-"`"
+var height_thumb = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "0x400"
+})
+```
 
 ### Thumbnail Behavior
 
@@ -147,57 +150,67 @@ Protected files require a special token for access, even if you're authenticated
 
 ### Getting a File Token
 
-"`"javascript
+```gdscript
 # Must be authenticated first
-await pb.collection('users').authWithPassword('user@example.com', 'password');
+var auth = await pb.collection("users").auth_with_password("user@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
 
 # Get file token
-const token = await pb.files.getToken();
+var token = await pb.files.get_token()
 
-print(token); # Short-lived JWT token
-"`"
+if token is ClientResponseError:
+    push_error("Failed to get token: " + token.to_string())
+    return
+
+print("Token: ", token)  # Short-lived JWT token
+```
 
 ### Using Protected File Token
 
-"`"javascript
+```gdscript
 # Get protected file URL with token
-const protectedFileUrl = pb.files.getURL(record, record.document, {
-  token});
+var protected_file_url = pb.files.get_url(record, record.get("document", ""), {
+    "token": token
+})
 
-# Access the file
-fetch(protectedFileUrl)
-  .then(response => response.blob())
-  .then(blob => {
-    # Use the file
-    const url = URL.createObjectURL(blob);
-    window.open(url);
-  });
-"`"
+# In GDScript, you would download the file using HTTPRequest with the URL
+print("Protected file URL: ", protected_file_url)
+```
 
 ### Protected File Example
 
-"`"javascript
-async function displayProtectedImage(recordId) {
-  # Authenticate
-  await pb.collection('users').authWithPassword('user@example.com', 'password');
-  
-  # Get record
-  const record = await pb.collection('documents').getOne(recordId);
-  
-  # Get file token
-  const token = await pb.files.getToken();
-  
-  # Get protected file URL
-  const imageUrl = pb.files.getURL(record, record.thumbnail, {
-    "token": token,
-    thumb});
-  
-  # Display image
-  const img = document.createElement('img');
-  img.src = imageUrl;
-  document.body.appendChild(img);
-}
-"`"
+```gdscript
+func display_protected_image(record_id: String) -> void:
+    # Authenticate
+    var auth = await pb.collection("users").auth_with_password("user@example.com", "password")
+    if auth is ClientResponseError:
+        push_error("Authentication failed: " + auth.to_string())
+        return
+    
+    # Get record
+    var record = await pb.collection("documents").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return
+    
+    # Get file token
+    var token = await pb.files.get_token()
+    if token is ClientResponseError:
+        push_error("Failed to get file token: " + token.to_string())
+        return
+    
+    # Get protected file URL
+    var image_url = pb.files.get_url(record, record.get("thumbnail", ""), {
+        "token": token,
+        "thumb": "300x300"
+    })
+    
+    # In Godot, you would load the image using HTTPRequest
+    # and display it using a TextureRect or Sprite2D
+    print("Image URL: ", image_url)
+```
 
 ### Token Lifetime
 
@@ -209,315 +222,251 @@ async function displayProtectedImage(recordId) {
 
 Force files to download instead of being displayed in the browser.
 
-"`"javascript
+```gdscript
 # Force download
-const downloadUrl = pb.files.getURL(record, record.document, {
-  download});
+var download_url = pb.files.get_url(record, record.get("document", ""), {
+    "download": true
+})
 
-# Create download link
-const link = document.createElement('a');
-link.href = downloadUrl;
-link.download = record.document;
-document.body.appendChild(link);
-link.click();
-"`"
+# In GDScript, use HTTPRequest to download the file
+print("Download URL: ", download_url)
+```
 
 ### Download Parameter Values
 
-"`"javascript
+```gdscript
 # These all force download:
-pb.files.getURL(record, filename, { download});
-pb.files.getURL(record, filename, { download});
-pb.files.getURL(record, filename, { download});
-pb.files.getURL(record, filename, { download});
-pb.files.getURL(record, filename, { download});
+pb.files.get_url(record, filename, { "download": true })
+pb.files.get_url(record, filename, { "download": 1 })
+pb.files.get_url(record, filename, { "download": "1" })
 
 # These allow inline display (default):
-pb.files.getURL(record, filename, { download});
-pb.files.getURL(record, filename); # No download parameter
-"`"
+pb.files.get_url(record, filename, { "download": false })
+pb.files.get_url(record, filename, { "download": 0 })
+pb.files.get_url(record, filename)  # No download parameter
+```
 
 ## Complete Examples
 
-### Example 1: Image Gallery
+### Example 1: Loading an Image into a TextureRect
 
-"`"javascript
-async function displayImageGallery(recordId) {
-  const record = await pb.collection('posts').getOne(recordId);
-  
-  const images = Array.isArray(record.images) ? record.images : [record.image];
-  
-  const gallery = document.getElementById('gallery');
-  
-  images.for_each(filename => {
-    # Thumbnail for gallery
-    const thumbUrl = pb.files.getURL(record, filename, {
-      thumb});
+```gdscript
+extends TextureRect
+
+var pb: BosBase
+
+func load_image_from_record(record_id: String, field_name: String) -> void:
+    # Get record
+    var record = await pb.collection("posts").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return
     
-    # Full image URL
-    const fullUrl = pb.files.getURL(record, filename);
+    # Get image URL
+    var image_url = pb.files.get_url(record, record.get(field_name, ""))
     
-    const img = document.createElement('img');
-    img.src = thumbUrl;
-    img.addEventListenerfunc('click', ():{
-      # Show full image in lightbox
-      showLightbox(fullUrl);
-    });
-    
-    gallery.appendChild(img);
-  });
-}
-"`"
+    # Load image using HTTPRequest
+    var http_request = HTTPRequest.new()
+    add_child(http_request)
+    http_request.request_completed.connect(_on_image_loaded.bind())
+    http_request.request(image_url)
+
+func _on_image_loaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+    if response_code == 200:
+        var image = Image.new()
+        var error = image.load_png_from_buffer(body)
+        if error == OK:
+            var texture = ImageTexture.create_from_image(image)
+            texture = texture
+            print("Image loaded successfully")
+        else:
+            push_error("Failed to load image from buffer")
+    else:
+        push_error("Failed to download image: ", response_code)
+```
 
 ### Example 2: File Download Handler
 
-"`"javascript
-async function downloadFile(recordId, filename) {
-  const record = await pb.collection('documents').getOne(recordId);
-  
-  # Get download URL
-  const downloadUrl = pb.files.getURL(record, filename, {
-    download});
-  
-  # Trigger download
-  const link = document.createElement('a');
-  link.href = downloadUrl;
-  link.download = filename;
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-"`"
+```gdscript
+func download_file(record_id: String, filename: String, save_path: String) -> void:
+    # Get record
+    var record = await pb.collection("documents").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return
+    
+    # Get download URL
+    var download_url = pb.files.get_url(record, filename, {
+        "download": true
+    })
+    
+    # Download using HTTPRequest
+    var http_request = HTTPRequest.new()
+    add_child(http_request)
+    http_request.request_completed.connect(_on_file_downloaded.bind(save_path))
+    http_request.request(download_url)
+
+func _on_file_downloaded(save_path: String, result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+    if response_code == 200:
+        var file = FileAccess.open(save_path, FileAccess.WRITE)
+        if file:
+            file.store_buffer(body)
+            file.close()
+            print("File downloaded to: ", save_path)
+        else:
+            push_error("Failed to write file to: ", save_path)
+    else:
+        push_error("Download failed with code: ", response_code)
+```
 
 ### Example 3: Protected File Viewer
 
-"`"javascript
-async function viewProtectedFile(recordId) {
-  # Authenticate
-  if (!pb.authStore.isValid) {
-    await pb.collection('users').authWithPassword('user@example.com', 'password');
-  }
-  
-  # Get record
-  const record = await pb.collection('private_docs').getOne(recordId);
-  
-  # Get token
-  let token;
-  try {
-    token = await pb.files.getToken();
-  } catch (error) {
-    push_error('Failed to get file token:', error);
-    return;
-  }
-  
-  # Get file URL
-  const fileUrl = pb.files.getURL(record, record.file, {
-    token});
-  
-  # Display based on file type
-  const ext = record.file.split('.').pop().toLowerCase();
-  
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].has(ext)) {
-    # Display image
-    const img = document.createElement('img');
-    img.src = fileUrl;
-    document.body.appendChild(img);
-  } else if (['pdf'].has(ext)) {
-    # Display PDF
-    const iframe = document.createElement('iframe');
-    iframe.src = fileUrl;
-    iframe.style.width = '100%';
-    iframe.style.height = '600px';
-    document.body.appendChild(iframe);
-  } else {
-    # Download other files
-    downloadFile(recordId, record.file);
-  }
-}
-"`"
-
-### Example 4: Responsive Image Component (React)
-
-"`"javascript
-import React from 'react';
-import { useRecord } from './hooks';
-
-function ResponsiveImage({ recordId, fieldName }) {
-  const record = useRecord('posts', recordId);
-  
-  if (!record || !record[fieldName]) {
-    return <div>Loading...</div>;
-  }
-  
-  const baseUrl = pb.files.getURL(record, record[fieldName]);
-  const thumbUrl = pb.files.getURL(record, record[fieldName], {
-    thumb});
-  
-  return (
-    <picture>
-      <source 
-        media="(max-width: 600px)" 
-        srcSet={pb.files.getURL(record, record[fieldName], { thumb})} 
-      />
-      <source 
-        media="(max-width: 1200px)" 
-        srcSet={thumbUrl} 
-      />
-      <img 
-        src={baseUrl} 
-        alt={record.title}
-        loading="lazy"
-      />
-    </picture>
-  );
-}
-"`"
-
-### Example 5: Multiple Files with Thumbnails
-
-"`"javascript
-async function displayFileList(recordId) {
-  const record = await pb.collection('attachments').getOne(recordId);
-  
-  const files = Array.isArray(record.files) ? record.files : [];
-  
-  const container = document.getElementById('file-list');
-  
-  files.for_each(filename => {
-    const fileItem = document.createElement('div');
-    fileItem.className = 'file-item';
+```gdscript
+func view_protected_file(record_id: String) -> void:
+    # Check authentication
+    if not pb.auth_store.is_valid:
+        var auth = await pb.collection("users").auth_with_password("user@example.com", "password")
+        if auth is ClientResponseError:
+            push_error("Authentication failed: " + auth.to_string())
+            return
     
-    # Check if it's an image
-    const ext = filename.split('.').pop().toLowerCase();
-    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].has(ext);
+    # Get record
+    var record = await pb.collection("private_docs").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return
     
-    if (isImage) {
-      # Show thumbnail
-      const thumbUrl = pb.files.getURL(record, filename, {
-        thumb});
-      
-      const img = document.createElement('img');
-      img.src = thumbUrl;
-      img.className = 'file-thumb';
-      fileItem.appendChild(img);
-    } else {
-      # Show file icon
-      const icon = document.createElement('i');
-      icon.className = 'file-icon';
-      fileItem.appendChild(icon);
-    }
+    # Get token
+    var token = await pb.files.get_token()
+    if token is ClientResponseError:
+        push_error("Failed to get file token: " + token.to_string())
+        return
     
-    # File name and download link
-    const link = document.createElement('a');
-    link.href = pb.files.getURL(record, filename, { download});
-    link.textContent = filename;
-    link.download = filename;
-    fileItem.appendChild(link);
+    # Get file URL
+    var file_url = pb.files.get_url(record, record.get("file", ""), {
+        "token": token
+    })
     
-    container.appendChild(fileItem);
-  });
-}
-"`"
+    # Display based on file type
+    var filename = record.get("file", "")
+    var ext = filename.get_extension().to_lower()
+    
+    if ext in ["jpg", "jpeg", "png", "gif", "webp"]:
+        # Load and display image (see Example 1)
+        load_image_from_url(file_url)
+    elif ext == "pdf":
+        # For PDF, you might need a PDF viewer plugin or open externally
+        print("PDF file URL: ", file_url)
+        OS.shell_open(file_url)
+    else:
+        # Download other files
+        download_file(record_id, filename, "user://downloads/" + filename)
+```
 
-### Example 6: Image Upload Preview with Thumbnail
+### Example 4: Multiple Files with Thumbnails
 
-"`"javascript
-function previewUploadedImage(record, filename) {
-  # Get thumbnail for preview
-  const previewUrl = pb.files.getURL(record, filename, {
-    thumb});
-  
-  # Create preview element
-  const preview = document.createElement('div');
-  preview.className = 'upload-preview';
-  
-  const img = document.createElement('img');
-  img.src = previewUrl;
-  img.alt = 'Preview';
-  
-  const fullUrl = pb.files.getURL(record, filename);
-  img.addEventListenerfunc('click', ():{
-    window.open(fullUrl, '_blank');
-  });
-  
-  preview.appendChild(img);
-  document.getElementById('previews').appendChild(preview);
-}
-"`"
+```gdscript
+func display_file_list(record_id: String) -> void:
+    var record = await pb.collection("attachments").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return
+    
+    var files = record.get("files", [])
+    if typeof(files) != TYPE_ARRAY:
+        files = []
+    
+    for filename in files:
+        # Check if it's an image
+        var ext = filename.get_extension().to_lower()
+        var is_image = ext in ["jpg", "jpeg", "png", "gif", "webp"]
+        
+        if is_image:
+            # Show thumbnail
+            var thumb_url = pb.files.get_url(record, filename, {
+                "thumb": "100x100"
+            })
+            # Load thumbnail (see Example 1)
+            load_thumbnail(thumb_url, filename)
+        else:
+            # Show file icon or download link
+            print("File: ", filename)
+            print("Download URL: ", pb.files.get_url(record, filename, {"download": true}))
+```
 
 ## Error Handling
 
-"`"javascript
-try {
-  const fileUrl = pb.files.getURL(record, record.image);
-  
-  # Verify URL is valid
-  if (!fileUrl) {
-    throw new Error('Invalid file URL');
-  }
-  
-  # Load image
-  const img = new Image();
-  img.onerror = () => {
-    push_error('Failed to load image');
-  };
-  img.onload = () => {
-    print('Image loaded successfully');
-  };
-  img.src = fileUrl;
-  
-} catch (error) {
-  push_error('File access error:', error);
-}
-"`"
+```gdscript
+func load_file_safely(record_id: String, field_name: String) -> void:
+    var record = await pb.collection("posts").get_one(record_id)
+    if record is ClientResponseError:
+        push_error("Failed to get record: " + record.to_string())
+        return
+    
+    var filename = record.get(field_name, "")
+    if filename.is_empty():
+        push_error("File field is empty")
+        return
+    
+    var file_url = pb.files.get_url(record, filename)
+    
+    if file_url.is_empty():
+        push_error("Invalid file URL")
+        return
+    
+    # Load file using HTTPRequest
+    var http_request = HTTPRequest.new()
+    add_child(http_request)
+    http_request.request_completed.connect(_on_file_loaded)
+    http_request.request(file_url)
+
+func _on_file_loaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+    if response_code == 200:
+        print("File loaded successfully")
+    else:
+        push_error("File access error: HTTP ", response_code)
+```
 
 ### Protected File Token Error Handling
 
-"`"javascript
-async function getProtectedFileUrl(record, filename) {
-  try {
-    # Get token
-    const token = await pb.files.getToken();
+```gdscript
+func get_protected_file_url(record: Dictionary, filename: String) -> String:
+    var token = await pb.files.get_token()
     
-    # Get file URL
-    return pb.files.getURL(record, filename, { token });
+    if token is ClientResponseError:
+        if token.status == 401:
+            push_error("Not authenticated")
+            # Trigger re-authentication
+        elif token.status == 403:
+            push_error("No permission to access file")
+        else:
+            push_error("Failed to get file token: " + token.to_string())
+        return ""
     
-  } catch (error) {
-    if (error.status === 401) {
-      push_error('Not authenticated');
-      # Redirect to login
-    } else if (error.status === 403) {
-      push_error('No permission to access file');
-    } else {
-      push_error('Failed to get file token:', error);
-    }
-    return null;
-  }
-}
-"`"
+    return pb.files.get_url(record, filename, {"token": token})
+```
 
 ## Best Practices
 
 1. **Use Thumbnails for Lists**: Use thumbnails when displaying images in lists/grids to reduce bandwidth
-2. **Lazy Loading**: Use "loading="lazy"" for images below the fold
+2. **Error Handling**: Always handle file loading errors gracefully
 3. **Cache Tokens**: Store file tokens and reuse them until they expire
-4. **Error Handling**: Always handle file loading errors gracefully
-5. **Content-Type**: Let the server handle content-type detection automatically
-6. **Range Requests**: The API supports Range requests for efficient video/audio streaming
-7. **Caching**: Files are cached with a 30-day cache-control header
-8. **Security**: Always use tokens for protected files, never expose them in client-side code
+4. **Content-Type**: Let the server handle content-type detection automatically
+5. **Range Requests**: The API supports Range requests for efficient video/audio streaming
+6. **Caching**: Files are cached with a 30-day cache-control header
+7. **Security**: Always use tokens for protected files, never expose them in client-side code
+8. **Async Operations**: Use `await` properly when loading files asynchronously
 
 ## Thumbnail Size Guidelines
 
 | Use Case | Recommended Size |
 |----------|-----------------|
-| Profile picture | "100x100" or "150x150" |
-| List thumbnails | "200x200" or "300x300" |
-| Card images | "400x400" or "500x500" |
-| Gallery previews | "300x300f" (fit) or "400x400f" |
-| Hero images | Use original or "800x800f" |
-| Avatar | "50x50" or "75x75" |
+| Profile picture | `100x100` or `150x150` |
+| List thumbnails | `200x200` or `300x300` |
+| Card images | `400x400` or `500x500` |
+| Gallery previews | `300x300f` (fit) or `400x400f` |
+| Hero images | Use original or `800x800f` |
+| Avatar | `50x50` or `75x75` |
 
 ## Limitations
 
@@ -525,7 +474,7 @@ async function getProtectedFileUrl(record, filename) {
 - **Protected Files**: Require authentication to get tokens
 - **Token Expiry**: File tokens expire after a short period (typically minutes)
 - **File Size**: Large files may take time to generate thumbnails on first request
-- **Thumb Sizes**: Must match sizes defined in field configuration or use default "100x100`
+- **Thumb Sizes**: Must match sizes defined in field configuration or use default "100x100"
 
 ## Related Documentation
 

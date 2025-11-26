@@ -1,4 +1,4 @@
-# Built-in Users Collection Guide - JavaScript SDK
+# Built-in Users Collection Guide - GDScript SDK
 
 This guide explains how to use the built-in "users" collection for authentication, registration, and API rules. **The "users" collection is automatically created when BosBase is initialized and does not need to be created manually.**
 
@@ -31,24 +31,24 @@ The "users" collection is a **built-in auth collection** that is automatically c
 
 ### Getting Users Collection Information
 
-``"javascript
+```gdscript
 # Get the users collection details
-const usersCollection = await pb.collections.getOne('users');
+var users_collection = await pb.collections.get_one("users")
 # or by ID
-const usersCollection = await pb.collections.getOne('_pb_users_auth_');
+var users_collection = await pb.collections.get_one("_pb_users_auth_")
 
-print('Collection ID:', usersCollection.id);
-print('Collection Name:', usersCollection.name);
-print('Collection Type:', usersCollection.type);
-print('Fields:', usersCollection.fields);
-print('API Rules:', {
-  listRule: usersCollection.listRule,
-  viewRule: usersCollection.viewRule,
-  createRule: usersCollection.createRule,
-  updateRule: usersCollection.updateRule,
-  deleteRule: usersCollection.deleteRule,
-});
-"`"
+print("Collection ID: ", users_collection.id)
+print("Collection Name: ", users_collection.name)
+print("Collection Type: ", users_collection.type)
+print("Fields: ", users_collection.fields)
+print("API Rules: ", {
+    "listRule": users_collection.listRule,
+    "viewRule": users_collection.viewRule,
+    "createRule": users_collection.createRule,
+    "updateRule": users_collection.updateRule,
+    "deleteRule": users_collection.deleteRule,
+})
+```
 
 ---
 
@@ -60,15 +60,15 @@ These fields are automatically added to all auth collections (including "users")
 
 | Field Name | Type | Description | Required | Hidden |
 |------------|------|-------------|----------|--------|
-| "id" | text | Unique record identifier | Yes | No |
-| "email" | email | User email address | Yes* | No |
-| "username" | text | Username (optional, if enabled) | No* | No |
-| "password" | password | Hashed password | Yes* | Yes |
-| "tokenKey" | text | Token key for auth tokens | Yes | Yes |
-| "emailVisibility" | bool | Whether email is visible to others | No | No |
-| "verified" | bool | Whether email is verified | No | No |
-| "created" | date | Record creation timestamp | Yes | No |
-| "updated" | date | Last update timestamp | Yes | No |
+| `id` | text | Unique record identifier | Yes | No |
+| `email` | email | User email address | Yes* | No |
+| `username` | text | Username (optional, if enabled) | No* | No |
+| `password` | password | Hashed password | Yes* | Yes |
+| `tokenKey` | text | Token key for auth tokens | Yes | Yes |
+| `emailVisibility` | bool | Whether email is visible to others | No | No |
+| `verified` | bool | Whether email is verified | No | No |
+| `created` | date | Record creation timestamp | Yes | No |
+| `updated` | date | Last update timestamp | Yes | No |
 
 *Required based on authentication method configuration (password auth, username auth, etc.)
 
@@ -78,45 +78,46 @@ The built-in "users" collection includes these custom fields:
 
 | Field Name | Type | Description | Required |
 |------------|------|-------------|----------|
-| "name" | text | User's display name | No (max: 255 characters) |
-| "avatar" | file | User avatar image | No (max: 1 file, images only) |
+| `name` | text | User's display name | No (max: 255 characters) |
+| `avatar` | file | User avatar image | No (max: 1 file, images only) |
 
 ### Default API Rules
 
 The "users" collection comes with these default API rules:
 
-"`"javascript
+```gdscript
 {
-  "listRule": "id = @request.auth.id",    # Users can only list themselves
-  "viewRule": "id = @request.auth.id",   # Users can only view themselves
-  "createRule": "",                       # Anyone can register (public)
-  "updateRule": "id = @request.auth.id", # Users can only update themselves
-  deleteRule}
-"`"
+    "listRule": "id = @request.auth.id",    # Users can only list themselves
+    "viewRule": "id = @request.auth.id",   # Users can only view themselves
+    "createRule": "",                       # Anyone can register (public)
+    "updateRule": "id = @request.auth.id", # Users can only update themselves
+    "deleteRule": "id = @request.auth.id"  # Users can only delete themselves
+}
+```
 
 **Understanding the Rules:**
 
-1. **"listRule: "id = @request.auth.id""**
+1. **`listRule: "id = @request.auth.id"`**
    - Users can only see their own record when listing
    - If not authenticated, returns empty list (not an error)
    - Superusers can see all users
 
-2. **"viewRule: "id = @request.auth.id""**
+2. **`viewRule: "id = @request.auth.id"`**
    - Users can only view their own record
    - If trying to view another user, returns 404
    - Superusers can view any user
 
-3. **"createRule: """** (empty string)
+3. **`createRule: ""`** (empty string)
    - **Public registration** - Anyone can create a user account
    - No authentication required
    - This enables self-registration
 
-4. **"updateRule: "id = @request.auth.id""**
+4. **`updateRule: "id = @request.auth.id"`**
    - Users can only update their own record
    - Prevents users from modifying other users' data
    - Superusers can update any user
 
-5. **"deleteRule: "id = @request.auth.id""**
+5. **`deleteRule: "id = @request.auth.id"`**
    - Users can only delete their own account
    - Prevents users from deleting other users
    - Superusers can delete any user
@@ -129,81 +130,114 @@ The "users" collection comes with these default API rules:
 
 ### Basic Registration
 
-Users can register by creating a record in the "users" collection. The "createRule" is set to """" (empty string), meaning **anyone can register**.
+Users can register by creating a record in the "users" collection. The `createRule` is set to `""` (empty string), meaning **anyone can register**.
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
 # Register a new user
-const newUser = await pb.collection('users').create({
-  email: 'user@example.com',
-  password: 'securepassword123',
-  passwordConfirm: 'securepassword123',
-  name: 'John Doe',
-});
+var new_user = await pb.collection("users").create({
+    "email": "user@example.com",
+    "password": "securepassword123",
+    "passwordConfirm": "securepassword123",
+    "name": "John Doe",
+})
 
-print('User registered:', newUser.id);
-print('Email:', newUser.email);
-"`"
+if new_user is ClientResponseError:
+    push_error("Registration failed: " + new_user.to_string())
+    return
+
+print("User registered: ", new_user.id)
+print("Email: ", new_user.email)
+```
 
 ### Registration with Email Verification
 
-"`"javascript
+```gdscript
 # Register user (verification email sent automatically if configured)
-const newUser = await pb.collection('users').create({
-  email: 'user@example.com',
-  password: 'securepassword123',
-  passwordConfirm: 'securepassword123',
-  name: 'John Doe',
-});
+var new_user = await pb.collection("users").create({
+    "email": "user@example.com",
+    "password": "securepassword123",
+    "passwordConfirm": "securepassword123",
+    "name": "John Doe",
+})
+
+if new_user is ClientResponseError:
+    push_error("Registration failed: " + new_user.to_string())
+    return
 
 # User will receive verification email
 # After clicking link, verified field becomes true
-"`"
+print("Verified status: ", new_user.verified)  # false initially
+```
 
 ### Registration with Username
 
 If username authentication is enabled in the collection settings:
 
-"`"javascript
-const newUser = await pb.collection('users').create({
-  email: 'user@example.com',
-  username: 'johndoe',
-  password: 'securepassword123',
-  passwordConfirm: 'securepassword123',
-  name: 'John Doe',
-});
-"`"
+```gdscript
+var new_user = await pb.collection("users").create({
+    "email": "user@example.com",
+    "username": "johndoe",
+    "password": "securepassword123",
+    "passwordConfirm": "securepassword123",
+    "name": "John Doe",
+})
+
+if new_user is ClientResponseError:
+    push_error("Registration failed: " + new_user.to_string())
+    return
+```
 
 ### Registration with Avatar Upload
 
-"`"javascript
-const formData = new FormData();
-formData.append('email', 'user@example.com');
-formData.append('password', 'securepassword123');
-formData.append('passwordConfirm', 'securepassword123');
-formData.append('name', 'John Doe');
-formData.append('avatar', avatarFile); # File from input
+```gdscript
+# Read avatar file
+var file_path = "res://avatar.jpg"
+var file = FileAccess.open(file_path, FileAccess.READ)
+if file == null:
+    push_error("Failed to open avatar file")
+    return
 
-const newUser = await pb.collection('users').create(formData);
-"`"
+var file_data = file.get_buffer(file.get_length())
+file.close()
+
+# Create user with avatar
+var files = {
+    "avatar": {
+        "filename": "avatar.jpg",
+        "content_type": "image/jpeg",
+        "data": file_data
+    }
+}
+
+var new_user = await pb.collection("users").create({
+    "email": "user@example.com",
+    "password": "securepassword123",
+    "passwordConfirm": "securepassword123",
+    "name": "John Doe",
+}, {}, files)
+
+if new_user is ClientResponseError:
+    push_error("Registration failed: " + new_user.to_string())
+    return
+```
 
 ### Check if Email Exists
 
-"`"javascript
-try {
-  const existing = await pb.collection('users').getFirstListItem(
-    'email = "user@example.com"'
-  );
-  print('Email already exists');
-} catch (err) {
-  if (err.status === 404) {
-    print('Email is available');
-  }
-}
-"`"
+```gdscript
+var existing = await pb.collection("users").get_first_list_item("email = \"user@example.com\"")
+
+if existing is ClientResponseError:
+    if existing.status == 404:
+        print("Email is available")
+    else:
+        push_error("Error checking email: " + existing.to_string())
+else:
+    print("Email already exists")
+```
 
 ---
 
@@ -211,115 +245,124 @@ try {
 
 ### Password Authentication
 
-"`"javascript
+```gdscript
 # Login with email and password
-const authData = await pb.collection('users').authWithPassword(
-  'user@example.com',
-  'password123'
-);
+var auth_data = await pb.collection("users").auth_with_password(
+    "user@example.com",
+    "password123"
+)
+
+if auth_data is ClientResponseError:
+    push_error("Authentication failed: " + auth_data.to_string())
+    return
 
 # Auth data is automatically stored
-print(pb.authStore.isValid);  # true
-print(pb.authStore.token);    # JWT token
-print(pb.authStore.record);   # User record
-"`"
+print(pb.auth_store.is_valid)  # true
+print(pb.auth_store.token)    # JWT token
+print(pb.auth_store.record)   # User record
+```
 
 ### Login with Username
 
 If username authentication is enabled:
 
-"`"javascript
-const authData = await pb.collection('users').authWithPassword(
-  'johndoe',  # username instead of email
-  'password123'
-);
-"`"
+```gdscript
+var auth_data = await pb.collection("users").auth_with_password(
+    "johndoe",  # username instead of email
+    "password123"
+)
+
+if auth_data is ClientResponseError:
+    push_error("Authentication failed: " + auth_data.to_string())
+    return
+```
 
 ### OAuth2 Authentication
 
-"`"javascript
+```gdscript
 # Login with OAuth2 (e.g., Google)
-const authData = await pb.collection('users').authWithOAuth2({
-  provider});
-
-# If user doesn't exist, account is created automatically
-print(pb.authStore.record);
-"`"
+# Note: OAuth2 implementation may vary in GDScript
+# Check AUTHENTICATION.md for OAuth2 details
+```
 
 ### OTP Authentication
 
-"`"javascript
+```gdscript
 # Step 1: Request OTP
-const otpResult = await pb.collection('users').requestOTP('user@example.com');
+var otp_result = await pb.collection("users").request_otp("user@example.com")
+if otp_result is ClientResponseError:
+    push_error("Failed to request OTP: " + otp_result.to_string())
+    return
 
 # Step 2: Authenticate with OTP code from email
-const authData = await pb.collection('users').authWithOTP(
-  otpResult.otpId,
-  '123456' # OTP code from email
-);
-"`"
+var auth_data = await pb.collection("users").auth_with_otp(
+    otp_result.otpId,
+    "123456"  # OTP code from email
+)
+
+if auth_data is ClientResponseError:
+    push_error("OTP authentication failed: " + auth_data.to_string())
+    return
+```
 
 ### Check Current Authentication
 
-"`"javascript
-if (pb.authStore.isValid) {
-  const user = pb.authStore.record;
-  print('Logged in as:', user.email);
-  print('User ID:', user.id);
-  print('Name:', user.name);
-} else {
-  print('Not authenticated');
-}
-"`"
+```gdscript
+if pb.auth_store.is_valid:
+    var user = pb.auth_store.record
+    print("Logged in as: ", user.email)
+    print("User ID: ", user.id)
+    print("Name: ", user.name)
+else:
+    print("Not authenticated")
+```
 
 ### Refresh Auth Token
 
-"`"javascript
+```gdscript
 # Refresh the authentication token
-await pb.collection('users').authRefresh();
-"`"
+var refresh_result = await pb.collection("users").auth_refresh()
+if refresh_result is ClientResponseError:
+    push_error("Token refresh failed: " + refresh_result.to_string())
+    pb.auth_store.clear()
+```
 
 ### Logout
 
-"`"javascript
-pb.authStore.clear();
-"`"
+```gdscript
+pb.auth_store.clear()
+```
 
 ### Get Current User
 
-"`"javascript
-const currentUser = pb.authStore.record;
-if (currentUser) {
-  print('Current user:', currentUser.email);
-  print('User ID:', currentUser.id);
-  print('Name:', currentUser.name);
-  print('Verified:', currentUser.verified);
-}
-"`"
+```gdscript
+var current_user = pb.auth_store.record
+if current_user:
+    print("Current user: ", current_user.email)
+    print("User ID: ", current_user.id)
+    print("Name: ", current_user.name)
+    print("Verified: ", current_user.verified)
+```
 
 ### Accessing User Fields
 
-"`"javascript
+```gdscript
 # After authentication, access user fields
-const user = pb.authStore.record;
+var user = pb.auth_store.record
 
 # System fields
-print(user.id);                    # User ID
-print(user.email);                 # Email
-print(user.username);              # Username (if enabled)
-print(user.verified);              # Email verification status
-print(user.emailVisibility);       # Email visibility setting
-print(user.created);               # Creation date
-print(user.updated);               # Last update date
+print(user.id)                    # User ID
+print(user.email)                 # Email
+print(user.get("username", ""))   # Username (if enabled)
+print(user.verified)              # Email verification status
+print(user.emailVisibility)       # Email visibility setting
+print(user.created)               # Creation date
+print(user.updated)               # Last update date
 
 # Custom fields (from users collection)
-print(user.name);                  # Display name
-print(user.avatar);                # Avatar filename
-
-# Access via data object (alternative)
-print(user.data.email);
-print(user.data.name);
-"`"
+print(user.name)                  # Display name
+print(user.get("avatar", ""))     # Avatar filename
+```
 
 ---
 
@@ -327,123 +370,125 @@ print(user.data.name);
 
 ### Understanding @request.auth
 
-The "@request.auth" identifier provides access to the currently authenticated user's data in API rules and filters.
+The `@request.auth` identifier provides access to the currently authenticated user's data in API rules and filters.
 
 **Available Properties:**
-- "@request.auth.id" - User's record ID
-- "@request.auth.email" - User's email
-- "@request.auth.username" - User's username (if enabled)
-- "@request.auth.*" - Any field from the user record
+- `@request.auth.id` - User's record ID
+- `@request.auth.email` - User's email
+- `@request.auth.username` - User's username (if enabled)
+- `@request.auth.*` - Any field from the user record
 
 ### Common API Rule Patterns
 
 #### 1. Require Authentication
 
-"`"javascript
+```
 # Only authenticated users can access
 listRule: '@request.auth.id != ""'
 viewRule: '@request.auth.id != ""'
 createRule: '@request.auth.id != ""'
-"`"
+```
 
 #### 2. Owner-Based Access
 
-"`"javascript
+```
 # Users can only access their own records
 viewRule: 'author = @request.auth.id'
 updateRule: 'author = @request.auth.id'
 deleteRule: 'author = @request.auth.id'
-"`"
+```
 
 #### 3. Public with User-Specific Data
 
-"`"javascript
+```
 # Public can see published, users can see their own
 listRule: '@request.auth.id != "" && author = @request.auth.id || status = "published"'
 viewRule: '@request.auth.id != "" && author = @request.auth.id || status = "published"'
-"`"
+```
 
 #### 4. Role-Based Access (if you add a role field)
 
-"`"javascript
+```
 # Assuming you add a 'role' select field to users collection
 listRule: '@request.auth.id != "" && @request.auth.role = "admin"'
 updateRule: '@request.auth.role = "admin" || author = @request.auth.id'
-"`"
+```
 
 #### 5. Verified Users Only
 
-"`"javascript
+```
 # Only verified users can create
 createRule: '@request.auth.id != "" && @request.auth.verified = true'
-"`"
+```
 
 ### Setting API Rules for Other Collections
 
 When creating collections that relate to users:
 
-"`"javascript
+```gdscript
 # Create posts collection with user-based rules
-const postsCollection = await pb.collections.create({
-  name: 'posts',
-  type: 'base',
-  fields: [
-    {
-      name: 'title',
-      type: 'text',
-      required: true,
-    },
-    {
-      name: 'content',
-      type: 'editor',
-    },
-    {
-      name: 'author',
-      type: 'relation',
-      collectionId: '_pb_users_auth_', # Reference to users collection
-      maxSelect: 1,
-      required: true,
-    },
-    {
-      name: 'status',
-      type: 'select',
-      options: {
-        values: ['draft', 'published'],
-      },
-    },
-  ],
-  # Public can see published posts, users can see their own
-  listRule: '@request.auth.id != "" && author = @request.auth.id || status = "published"',
-  viewRule: '@request.auth.id != "" && author = @request.auth.id || status = "published"',
-  # Only authenticated users can create
-  createRule: '@request.auth.id != ""',
-  # Only authors can update their posts
-  updateRule: 'author = @request.auth.id',
-  # Only authors can delete their posts
-  deleteRule: 'author = @request.auth.id',
-});
-"`"
+var posts_collection = await pb.collections.create({
+    "name": "posts",
+    "type": "base",
+    "fields": [
+        {
+            "name": "title",
+            "type": "text",
+            "required": true,
+        },
+        {
+            "name": "content",
+            "type": "editor",
+        },
+        {
+            "name": "author",
+            "type": "relation",
+            "options": {
+                "collectionId": "_pb_users_auth_",  # Reference to users collection
+            },
+            "maxSelect": 1,
+            "required": true,
+        },
+        {
+            "name": "status",
+            "type": "select",
+            "options": {
+                "values": ["draft", "published"],
+            },
+        },
+    ],
+    # Public can see published posts, users can see their own
+    "listRule": "@request.auth.id != \"\" && author = @request.auth.id || status = \"published\"",
+    "viewRule": "@request.auth.id != \"\" && author = @request.auth.id || status = \"published\"",
+    # Only authenticated users can create
+    "createRule": "@request.auth.id != \"\"",
+    # Only authors can update their posts
+    "updateRule": "author = @request.auth.id",
+    # Only authors can delete their posts
+    "deleteRule": "author = @request.auth.id",
+})
+```
 
 ### Using Filters with Users
 
-"`"javascript
+```gdscript
 # Get posts by current user
-const myPosts = await pb.collection('posts').getList(1, 20, {
-  filter: 'author = @request.auth.id',
-});
+var my_posts = await pb.collection("posts").get_list(1, 20, {
+    "filter": "author = @request.auth.id"
+})
 
 # Get posts by verified users only
-const verifiedPosts = await pb.collection('posts').getList(1, 20, {
-  filter: 'author.verified = true',
-  expand: 'author',
-});
+var verified_posts = await pb.collection("posts").get_list(1, 20, {
+    "filter": "author.verified = true",
+    "expand": "author"
+})
 
 # Get posts where author name contains "John"
-const posts = await pb.collection('posts').getList(1, 20, {
-  filter: 'author.name ~ "John"',
-  expand: 'author',
-});
-"`"
+var posts = await pb.collection("posts").get_list(1, 20, {
+    "filter": "author.name ~ \"John\"",
+    "expand": "author"
+})
+```
 
 ---
 
@@ -453,79 +498,92 @@ const posts = await pb.collection('posts').getList(1, 20, {
 
 When creating collections that need to reference users:
 
-"`"javascript
+```gdscript
 # Create a posts collection with author relation
-const postsCollection = await pb.collections.create({
-  name: 'posts',
-  type: 'base',
-  fields: [
-    {
-      name: 'title',
-      type: 'text',
-      required: true,
-    },
-    {
-      name: 'author',
-      type: 'relation',
-      collectionId: '_pb_users_auth_', # Users collection ID
-      # OR use collection name
-      # collectionName: 'users',
-      maxSelect: 1,
-      required: true,
-    },
-  ],
-});
-"`"
+var posts_collection = await pb.collections.create({
+    "name": "posts",
+    "type": "base",
+    "fields": [
+        {
+            "name": "title",
+            "type": "text",
+            "required": true,
+        },
+        {
+            "name": "author",
+            "type": "relation",
+            "options": {
+                "collectionId": "_pb_users_auth_",  # Users collection ID
+            },
+            "maxSelect": 1,
+            "required": true,
+        },
+    ],
+})
+```
 
 ### Creating Records with User Relations
 
-"`"javascript
+```gdscript
 # Authenticate first
-await pb.collection('users').authWithPassword('user@example.com', 'password');
+var auth = await pb.collection("users").auth_with_password("user@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
 
 # Create a post with current user as author
-const post = await pb.collection('posts').create({
-  title: 'My First Post',
-  author: pb.authStore.record.id, # Current user's ID
-});
-"`"
+var post = await pb.collection("posts").create({
+    "title": "My First Post",
+    "author": pb.auth_store.record.id,  # Current user's ID
+})
+```
 
 ### Querying with User Relations
 
-"`"javascript
+```gdscript
 # Get posts with author information
-const posts = await pb.collection('posts').getList(1, 20, {
-  expand: 'author', # Expand the author relation
-});
+var posts = await pb.collection("posts").get_list(1, 20, {
+    "expand": "author",  # Expand the author relation
+})
 
-posts.items.for_each(post => {
-  print('Post:', post.title);
-  print('Author:', post.expand.author.name);
-  print('Author Email:', post.expand.author.email);
-});
+for post in posts.items:
+    print("Post: ", post.title)
+    var author = post.get("expand", {}).get("author", {})
+    print("Author: ", author.get("name", ""))
+    print("Author Email: ", author.get("email", ""))
 
 # Filter posts by author
-const userPosts = await pb.collection('posts').getList(1, 20, {
-  filter: 'author = "USER_ID"',
-  expand: 'author',
-});
-"`"
+var user_posts = await pb.collection("posts").get_list(1, 20, {
+    "filter": "author = \"USER_ID\"",
+    "expand": "author"
+})
+```
 
 ### Updating User Profile
 
-"`"javascript
+```gdscript
 # Users can update their own profile
-await pb.collection('users').update(pb.authStore.record.id, {
-  name: 'Updated Name',
-});
+await pb.collection("users").update(pb.auth_store.record.id, {
+    "name": "Updated Name"
+})
 
 # Update with avatar
-const formData = new FormData();
-formData.append('name', 'New Name');
-formData.append('avatar', newAvatarFile);
+var file = FileAccess.open("res://new_avatar.jpg", FileAccess.READ)
+var file_data = file.get_buffer(file.get_length())
+file.close()
 
-await pb.collection('users').update(pb.authStore.record.id, formData);
-"`"
+var files = {
+    "avatar": {
+        "filename": "new_avatar.jpg",
+        "content_type": "image/jpeg",
+        "data": file_data
+    }
+}
+
+await pb.collection("users").update(pb.auth_store.record.id, {
+    "name": "New Name"
+}, {}, files)
+```
 
 ---
 
@@ -533,332 +591,216 @@ await pb.collection('users').update(pb.authStore.record.id, formData);
 
 ### Example 1: User Registration and Login Flow
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
-async function registerAndLogin() {
-  try {
+func register_and_login() -> Dictionary:
     # 1. Register new user
-    const newUser = await pb.collection('users').create({
-      email: 'newuser@example.com',
-      password: 'securepassword123',
-      passwordConfirm: 'securepassword123',
-      name: 'New User',
-    });
+    var new_user = await pb.collection("users").create({
+        "email": "newuser@example.com",
+        "password": "securepassword123",
+        "passwordConfirm": "securepassword123",
+        "name": "New User",
+    })
     
-    print('Registration successful:', newUser.id);
+    if new_user is ClientResponseError:
+        push_error("Registration error: " + new_user.to_string())
+        if new_user.data:
+            push_error("Validation errors: ", new_user.data)
+        return {}
+    
+    print("Registration successful: ", new_user.id)
     
     # 2. Login with credentials
-    const authData = await pb.collection('users').authWithPassword(
-      'newuser@example.com',
-      'securepassword123'
-    );
+    var auth_data = await pb.collection("users").auth_with_password(
+        "newuser@example.com",
+        "securepassword123"
+    )
     
-    print('Login successful');
-    print('Token:', authData.token);
-    print('User:', authData.record);
+    if auth_data is ClientResponseError:
+        push_error("Login error: " + auth_data.to_string())
+        return {}
     
-    return authData;
-  } catch (err) {
-    push_error('Error:', err.message);
-    if (err.data) {
-      push_error('Validation errors:', err.data);
-    }
-  }
-}
+    print("Login successful")
+    print("Token: ", auth_data.token)
+    print("User: ", auth_data.record)
+    
+    return auth_data
+```
 
-registerAndLogin();
-"`"
+### Example 2: User Creates and Manages Their Posts
 
-### Example 2: Creating User-Related Collections
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+var pb = BosBase.new("http://localhost:8090")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+func user_post_management() -> void:
+    # 1. User logs in
+    var auth = await pb.collection("users").auth_with_password("user@example.com", "password")
+    if auth is ClientResponseError:
+        push_error("Authentication failed: " + auth.to_string())
+        return
+    
+    var user_id = pb.auth_store.record.id
+    
+    # 2. User creates a post
+    var post = await pb.collection("posts").create({
+        "title": "My First Post",
+        "content": "This is my content",
+        "author": user_id,
+        "status": "draft",
+    })
+    
+    if post is ClientResponseError:
+        push_error("Failed to create post: " + post.to_string())
+        return
+    
+    print("Post created: ", post.id)
+    
+    # 3. User lists their own posts
+    var my_posts = await pb.collection("posts").get_list(1, 20, {
+        "filter": "author = \"" + user_id + "\"",
+        "sort": "-created"
+    })
+    
+    print("My posts: ", my_posts.items.size())
+    
+    # 4. User updates their post
+    await pb.collection("posts").update(post.id, {
+        "title": "Updated Title",
+        "status": "published",
+    })
+    
+    # 5. User views their post with author info
+    var updated_post = await pb.collection("posts").get_one(post.id, {
+        "expand": "author"
+    })
+    
+    if updated_post is ClientResponseError:
+        push_error("Failed to get post: " + updated_post.to_string())
+        return
+    
+    var author = updated_post.get("expand", {}).get("author", {})
+    print("Post author: ", author.get("name", ""))
+    
+    # 6. User deletes their post
+    await pb.collection("posts").delete(post.id)
+    
+    print("Post deleted")
+```
 
-# Authenticate as superuser to create collections
-await pb.admins.authWithPassword('admin@example.com', 'adminpassword');
+### Example 3: Public Posts with User Information
 
-async function setupUserRelatedCollections() {
-  # Create posts collection linked to users
-  const postsCollection = await pb.collections.create({
-    name: 'posts',
-    type: 'base',
-    fields: [
-      {
-        name: 'title',
-        type: 'text',
-        required: true,
-      },
-      {
-        name: 'content',
-        type: 'editor',
-      },
-      {
-        name: 'author',
-        type: 'relation',
-        collectionId: '_pb_users_auth_', # Link to users
-        maxSelect: 1,
-        required: true,
-      },
-      {
-        name: 'status',
-        type: 'select',
-        options: {
-          values: ['draft', 'published'],
-        },
-      },
-    ],
-    # API rules using users collection
-    listRule: '@request.auth.id != "" && author = @request.auth.id || status = "published"',
-    viewRule: '@request.auth.id != "" && author = @request.auth.id || status = "published"',
-    createRule: '@request.auth.id != ""',
-    updateRule: 'author = @request.auth.id',
-    deleteRule: 'author = @request.auth.id',
-  });
-  
-  # Create comments collection
-  const commentsCollection = await pb.collections.create({
-    name: 'comments',
-    type: 'base',
-    fields: [
-      {
-        name: 'content',
-        type: 'text',
-        required: true,
-      },
-      {
-        name: 'post',
-        type: 'relation',
-        collectionId: postsCollection.id,
-        maxSelect: 1,
-        required: true,
-      },
-      {
-        name: 'author',
-        type: 'relation',
-        collectionId: '_pb_users_auth_', # Link to users
-        maxSelect: 1,
-        required: true,
-      },
-    ],
-    listRule: '@request.auth.id != ""',
-    viewRule: '@request.auth.id != ""',
-    createRule: '@request.auth.id != ""',
-    updateRule: 'author = @request.auth.id',
-    deleteRule: 'author = @request.auth.id',
-  });
-  
-  print('Collections created successfully');
-}
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-setupUserRelatedCollections();
-"`"
+var pb = BosBase.new("http://localhost:8090")
 
-### Example 3: User Creates and Manages Their Posts
+func view_public_posts() -> void:
+    # No authentication required for public posts
+    
+    # Get published posts with author information
+    var posts = await pb.collection("posts").get_list(1, 20, {
+        "filter": "status = \"published\"",
+        "expand": "author",
+        "sort": "-created"
+    })
+    
+    if posts is ClientResponseError:
+        push_error("Failed to get posts: " + posts.to_string())
+        return
+    
+    for post in posts.items:
+        print("Title: ", post.title)
+        var author = post.get("expand", {}).get("author", {})
+        print("Author: ", author.get("name", ""))
+        # Email visibility depends on author's emailVisibility setting
+        if author.get("emailVisibility", false):
+            print("Author Email: ", author.get("email", ""))
+```
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+### Example 4: Email Verification Flow
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-async function userPostManagement() {
-  # 1. User logs in
-  await pb.collection('users').authWithPassword('user@example.com', 'password');
-  const userId = pb.authStore.record.id;
-  
-  # 2. User creates a post
-  const post = await pb.collection('posts').create({
-    title: 'My First Post',
-    content: 'This is my content',
-    author: userId,
-    status: 'draft',
-  });
-  
-  print('Post created:', post.id);
-  
-  # 3. User lists their own posts
-  const myPosts = await pb.collection('posts').getList(1, 20, {
-    filter}"",
-    sort: '-created',
-  });
-  
-  print('My posts:', myPosts.items.length);
-  
-  # 4. User updates their post
-  await pb.collection('posts').update(post.id, {
-    title: 'Updated Title',
-    status: 'published',
-  });
-  
-  # 5. User views their post with author info
-  const updatedPost = await pb.collection('posts').getOne(post.id, {
-    expand: 'author',
-  });
-  
-  print('Post author:', updatedPost.expand.author.name);
-  
-  # 6. User deletes their post
-  await pb.collection('posts').delete(post.id);
-  
-  print('Post deleted');
-}
+var pb = BosBase.new("http://localhost:8090")
 
-userPostManagement();
-``"
+func email_verification_flow() -> void:
+    # 1. User registers
+    var new_user = await pb.collection("users").create({
+        "email": "user@example.com",
+        "password": "password123",
+        "passwordConfirm": "password123",
+        "name": "User Name",
+    })
+    
+    if new_user is ClientResponseError:
+        push_error("Registration failed: " + new_user.to_string())
+        return
+    
+    print("User registered, verification email sent")
+    print("Verified status: ", new_user.verified)  # false
+    
+    # 2. User clicks verification link in email
+    # (This is handled by the backend automatically)
+    
+    # 3. Check verification status
+    var user = await pb.collection("users").get_one(new_user.id)
+    if user is ClientResponseError:
+        push_error("Failed to get user: " + user.to_string())
+        return
+    
+    print("Verified: ", user.verified)
+    
+    # 4. Request new verification email if needed
+    var result = await pb.collection("users").request_verification("user@example.com")
+    if result is ClientResponseError:
+        push_error("Failed to request verification: " + result.to_string())
+```
 
-### Example 4: Public Posts with User Information
+### Example 5: Password Reset Flow
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
-async function viewPublicPosts() {
-  # No authentication required for public posts
-  
-  # Get published posts with author information
-  const posts = await pb.collection('posts').getList(1, 20, {
-    filter: 'status = "published"',
-    expand: 'author',
-    sort: '-created',
-  });
-  
-  posts.items.for_each(post => {
-    print('Title:', post.title);
-    print('Author:', post.expand.author.name);
-    # Email visibility depends on author's emailVisibility setting
-    if (post.expand.author.emailVisibility) {
-      print('Author Email:', post.expand.author.email);
-    }
-  });
-}
-
-viewPublicPosts();
-"`"
-
-### Example 5: Email Verification Flow
-
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-
-var pb = BosBase.new(\"http:#localhost:8090\")
-
-async function emailVerificationFlow() {
-  # 1. User registers
-  const newUser = await pb.collection('users').create({
-    email: 'user@example.com',
-    password: 'password123',
-    passwordConfirm: 'password123',
-    name: 'User Name',
-  });
-  
-  print('User registered, verification email sent');
-  print('Verified status:', newUser.verified); # false
-  
-  # 2. User clicks verification link in email
-  # (This is handled by the backend automatically)
-  
-  # 3. Check verification status
-  const user = await pb.collection('users').getOne(newUser.id);
-  print('Verified:', user.verified);
-  
-  # 4. Request new verification email if needed
-  await pb.collection('users').requestVerification('user@example.com');
-}
-
-emailVerificationFlow();
-"`"
-
-### Example 6: Password Reset Flow
-
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-
-var pb = BosBase.new(\"http:#localhost:8090\")
-
-async function passwordResetFlow() {
-  # 1. User requests password reset
-  await pb.collection('users').requestPasswordReset('user@example.com');
-  print('Password reset email sent');
-  
-  # 2. User clicks link in email and gets reset token
-  # (Token is in the URL query parameter)
-  
-  # 3. User confirms password reset with token
-  await pb.collection('users').confirmPasswordReset(
-    'RESET_TOKEN_FROM_EMAIL',
-    'newpassword123',
-    'newpassword123' # passwordConfirm
-  );
-  
-  print('Password reset successful');
-  
-  # 4. User can now login with new password
-  await pb.collection('users').authWithPassword(
-    'user@example.com',
-    'newpassword123'
-  );
-}
-
-passwordResetFlow();
-"`"
-
-### Example 7: Using Users in API Rules for Other Collections
-
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-
-var pb = BosBase.new(\"http:#localhost:8090\")
-
-# Authenticate as superuser
-await pb.admins.authWithPassword('admin@example.com', 'adminpassword');
-
-# Create a blog system with user-based access control
-async function createBlogSystem() {
-  # Create posts collection
-  const posts = await pb.collections.create({
-    "name": 'posts',
-    "type": 'base',
-    "fields": [
-      { "name": 'title', "type": 'text', required},
-      { "name": 'content', type},
-      { "name": 'author', "type": 'relation', "collectionId": '_pb_users_auth_', "maxSelect": 1, required},
-      { name: 'status', type: 'select', options: { values: ['draft', 'published'] } },
-    ],
-    # Public can see published, authors can see their own
-    listRule: 'status = "published" || author = @request.auth.id',
-    viewRule: 'status = "published" || author = @request.auth.id',
-    createRule: '@request.auth.id != ""',
-    updateRule: 'author = @request.auth.id',
-    deleteRule: 'author = @request.auth.id',
-  });
-  
-  # Create comments collection
-  const comments = await pb.collections.create({
-    "name": 'comments',
-    "type": 'base',
-    "fields": [
-      { "name": 'content', "type": 'text', required},
-      { "name": 'post', "type": 'relation', "collectionId": posts.id, "maxSelect": 1, required},
-      { "name": 'author', "type": 'relation', "collectionId": '_pb_users_auth_', "maxSelect": 1, required},
-    ],
-    # Anyone can see comments on published posts, authors can see their own
-    listRule: 'post.status = "published" || author = @request.auth.id',
-    viewRule: 'post.status = "published" || author = @request.auth.id',
-    createRule: '@request.auth.id != "" && post.status = "published"',
-    updateRule: 'author = @request.auth.id',
-    deleteRule: 'author = @request.auth.id',
-  });
-  
-  print('Blog system created with user-based access control');
-}
-
-createBlogSystem();
-"`"
+func password_reset_flow() -> void:
+    # 1. User requests password reset
+    var result = await pb.collection("users").request_password_reset("user@example.com")
+    if result is ClientResponseError:
+        push_error("Failed to request password reset: " + result.to_string())
+        return
+    
+    print("Password reset email sent")
+    
+    # 2. User clicks link in email and gets reset token
+    # (Token is in the URL query parameter)
+    
+    # 3. User confirms password reset with token
+    await pb.collection("users").confirm_password_reset(
+        "RESET_TOKEN_FROM_EMAIL",
+        "newpassword123",
+        "newpassword123"  # passwordConfirm
+    )
+    
+    print("Password reset successful")
+    
+    # 4. User can now login with new password
+    var auth = await pb.collection("users").auth_with_password(
+        "user@example.com",
+        "newpassword123"
+    )
+    
+    if auth is ClientResponseError:
+        push_error("Login failed: " + auth.to_string())
+    else:
+        print("Login successful with new password")
+```
 
 ---
 
@@ -879,35 +821,34 @@ createBlogSystem();
 
 ### Pattern 1: Owner-Only Access
 
-"`"javascript
+```
 # Users can only access their own records
 updateRule: 'author = @request.auth.id'
 deleteRule: 'author = @request.auth.id'
-"`"
+```
 
 ### Pattern 2: Public Read, Authenticated Write
 
-"`"javascript
+```
 listRule: 'status = "published" || author = @request.auth.id'
 viewRule: 'status = "published" || author = @request.auth.id'
 createRule: '@request.auth.id != ""'
-"`"
+```
 
 ### Pattern 3: Verified Users Only
 
-"`"javascript
+```
 createRule: '@request.auth.id != "" && @request.auth.verified = true'
-"`"
+```
 
 ### Pattern 4: Filter by Current User
 
-"`"javascript
-const myRecords = await pb.collection('posts').getList(1, 20, {
-  filter}"",
-});
-``"
+```gdscript
+var my_records = await pb.collection("posts").get_list(1, 20, {
+    "filter": "author = @request.auth.id"
+})
+```
 
 ---
 
-This guide covers all essential operations with the built-in "users" collection. Remember: **always use the existing "users` collection, never create a new one manually.**
-
+This guide covers all essential operations with the built-in "users" collection. Remember: **always use the existing "users" collection, never create a new one manually.**

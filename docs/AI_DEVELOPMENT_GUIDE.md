@@ -1,6 +1,6 @@
-# AI Development Guide - JavaScript SDK
+# AI Development Guide - GDScript SDK
 
-This guide provides a comprehensive, fast reference for AI systems to quickly develop applications using the BosBase JavaScript SDK. All examples are production-ready and follow best practices.
+This guide provides a comprehensive, fast reference for AI systems to quickly develop applications using the BosBase GDScript SDK. All examples are production-ready and follow best practices.
 
 ## Table of Contents
 
@@ -23,69 +23,76 @@ This guide provides a comprehensive, fast reference for AI systems to quickly de
 
 ### Initialize Client
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
-"`"
+var pb = BosBase.new("http://localhost:8090")
+```
 
 ### Password Authentication
 
-"`"javascript
+```gdscript
 # Authenticate with email/username and password
-const authData = await pb.collection('users').authWithPassword(
-  'user@example.com',
-  'password123'
-);
+var auth_data = await pb.collection("users").auth_with_password(
+    "user@example.com",
+    "password123"
+)
+
+if auth_data is ClientResponseError:
+    push_error("Authentication failed: " + auth_data.to_string())
+    return
 
 # Auth data is automatically stored
-print(pb.authStore.isValid);  # true
-print(pb.authStore.token);    # JWT token
-print(pb.authStore.record);   # User record
-"`"
+print(pb.auth_store.is_valid)  # true
+print(pb.auth_store.token)    # JWT token
+print(pb.auth_store.record)   # User record
+```
 
 ### OAuth2 Authentication
 
-"`"javascript
+```gdscript
 # Get OAuth2 providers
-const methods = await pb.collection('users').listAuthMethods();
-print(methods.oauth2.providers); # Available providers
+var methods = await pb.collection("users").list_auth_methods()
+if methods is ClientResponseError:
+    push_error("Failed to get auth methods: " + methods.to_string())
+    return
 
-# Authenticate with OAuth2
-const authData = await pb.collection('users').authWithOAuth2({
-  "provider": 'google',
-  urlCallback},
-});
-"`"
+print(methods.oauth2.providers)  # Available providers
+
+# Authenticate with OAuth2 (implementation depends on provider)
+# Note: OAuth2 flow in GDScript requires custom implementation
+```
 
 ### OTP Authentication
 
-"`"javascript
+```gdscript
 # Request OTP
-const otpResponse = await pb.collection('users').requestVerification('user@example.com');
+var otp_response = await pb.collection("users").request_verification("user@example.com")
+if otp_response is ClientResponseError:
+    push_error("Failed to request OTP: " + otp_response.to_string())
+    return
 
 # Authenticate with OTP
-const authData = await pb.collection('users').authWithOTP(
-  otpResponse.otpId,
-  '123456' # OTP code
-);
-"`"
+var auth_data = await pb.collection("users").auth_with_otp(
+    otp_response.otpId,
+    "123456"  # OTP code
+)
+```
 
 ### Check Authentication Status
 
-"`"javascript
-if (pb.authStore.isValid) {
-  print('Authenticated as:', pb.authStore.record.email);
-} else {
-  print('Not authenticated');
-}
-"`"
+```gdscript
+if pb.auth_store.is_valid:
+    print("Authenticated as: ", pb.auth_store.record.email)
+else:
+    print("Not authenticated")
+```
 
 ### Logout
 
-"`"javascript
-pb.authStore.clear();
-"`"
+```gdscript
+pb.auth_store.clear()
+```
 
 ---
 
@@ -93,59 +100,63 @@ pb.authStore.clear();
 
 ### Create Base Collection
 
-"`"javascript
-const collection = await pb.collections.create({
-  name: 'posts',
-  type: 'base',
-  fields: [
-    {
-      name: 'title',
-      type: 'text',
-      required: true,
-    },
-  ],
-});
+```gdscript
+var collection = await pb.collections.create({
+    "name": "posts",
+    "type": "base",
+    "fields": [
+        {
+            "name": "title",
+            "type": "text",
+            "required": true,
+        },
+    ],
+})
 
-print('Collection ID:', collection.id);
-"`"
+if collection is ClientResponseError:
+    push_error("Failed to create collection: " + collection.to_string())
+    return
+
+print("Collection ID: ", collection.id)
+```
 
 ### Create Auth Collection
 
-"`"javascript
-const authCollection = await pb.collections.create({
-  name: 'users',
-  type: 'auth',
-  fields: [
-    {
-      name: 'name',
-      type: 'text',
-      required: false,
+```gdscript
+var auth_collection = await pb.collections.create({
+    "name": "users",
+    "type": "auth",
+    "fields": [
+        {
+            "name": "name",
+            "type": "text",
+            "required": false,
+        },
+    ],
+    "passwordAuth": {
+        "enabled": true,
+        "identityFields": ["email", "username"],
     },
-  ],
-  passwordAuth: {
-    enabled: true,
-    identityFields: ['email', 'username'],
-  },
-});
-"`"
+})
+```
 
 ### Create View Collection
 
-"`"javascript
-const viewCollection = await pb.collections.create({
-  name: 'published_posts',
-  type: 'view',
-  viewQuery: 'SELECT * FROM posts WHERE published = true',
-});
-"`"
+```gdscript
+var view_collection = await pb.collections.create({
+    "name": "published_posts",
+    "type": "view",
+    "viewQuery": "SELECT * FROM posts WHERE published = true",
+})
+```
 
 ### Get Collection by ID or Name
 
-"`"javascript
-const collection = await pb.collections.getOne('posts');
+```gdscript
+var collection = await pb.collections.get_one("posts")
 # or by ID
-const collection = await pb.collections.getOne('_pbc_2287844090');
-"`"
+var collection = await pb.collections.get_one("_pbc_2287844090")
+```
 
 ---
 
@@ -153,92 +164,94 @@ const collection = await pb.collections.getOne('_pbc_2287844090');
 
 ### Add Field to Collection
 
-"`"javascript
-const updatedCollection = await pb.collections.addField('posts', {
-  name: 'content',
-  type: 'editor',
-  required: false,
-});
-"`"
+```gdscript
+var updated_collection = await pb.collections.add_field("posts", {
+    "name": "content",
+    "type": "editor",
+    "required": false,
+})
+```
 
 ### Common Field Types
 
-"`"javascript
+```gdscript
 # Text field
 {
-  name: 'title',
-  type: 'text',
-  required: true,
-  min: 10,
-  max: 255,
+    "name": "title",
+    "type": "text",
+    "required": true,
+    "min": 10,
+    "max": 255,
 }
 
 # Number field
 {
-  name: 'views',
-  type: 'number',
-  required: false,
-  min: 0,
+    "name": "views",
+    "type": "number",
+    "required": false,
+    "min": 0,
 }
 
 # Boolean field
 {
-  name: 'published',
-  type: 'bool',
-  required: false,
+    "name": "published",
+    "type": "bool",
+    "required": false,
 }
 
 # Date field
 {
-  name: 'published_at',
-  type: 'date',
-  required: false,
+    "name": "published_at",
+    "type": "date",
+    "required": false,
 }
 
 # File field
 {
-  name: 'avatar',
-  type: 'file',
-  required: false,
-  maxSelect: 1,
-  maxSize: 2097152, # 2MB
-  mimeTypes: ['image/jpeg', 'image/png'],
+    "name": "avatar",
+    "type": "file",
+    "required": false,
+    "maxSelect": 1,
+    "maxSize": 2097152,  # 2MB
+    "mimeTypes": ["image/jpeg", "image/png"],
 }
 
 # Relation field
 {
-  name: 'author',
-  type: 'relation',
-  required: true,
-  collectionId: '_pbc_users_auth_',
-  maxSelect: 1,
+    "name": "author",
+    "type": "relation",
+    "required": true,
+    "options": {
+        "collectionId": "_pbc_users_auth_",
+    },
+    "maxSelect": 1,
 }
 
 # Select field
 {
-  name: 'status',
-  type: 'select',
-  required: true,
-  options: {
-    values: ['draft', 'published', 'archived'],
-  },
+    "name": "status",
+    "type": "select",
+    "required": true,
+    "options": {
+        "values": ["draft", "published", "archived"],
+    },
 }
-"`"
+```
 
 ### Update Field
 
-"`"javascript
-const updatedCollection = await pb.collections.updateField('posts', 'title', {
-  max: 500,
-  required: true,
-});
-"`"
+```gdscript
+var updated_collection = await pb.collections.update_field("posts", "title", {
+    "max": 500,
+    "required": true,
+})
+```
 
 ### Remove Field
 
-"`"javascript
-const updatedCollection = await pb.collections.removeField('posts', 'old_field');
-"`"
+```gdscript
+var updated_collection = await pb.collections.remove_field("posts", "old_field")
+```
 
 ---
 
@@ -246,52 +259,72 @@ const updatedCollection = await pb.collections.removeField('posts', 'old_field')
 
 ### Create Single Record
 
-"`"javascript
-const record = await pb.collection('posts').create({
-  title: 'My First Post',
-  content: 'This is the content',
-  published: true,
-});
+```gdscript
+var record = await pb.collection("posts").create({
+    "title": "My First Post",
+    "content": "This is the content",
+    "published": true,
+})
 
-print('Created record ID:', record.id);
-"`"
+if record is ClientResponseError:
+    push_error("Failed to create record: " + record.to_string())
+    return
+
+print("Created record ID: ", record.id)
+```
 
 ### Create Record with File Upload
 
-"`"javascript
-const formData = new FormData();
-formData.append('title', 'Post with Image');
-formData.append('image', fileInput.files[0]); # File from input
+```gdscript
+# Read file
+var file_path = "res://image.jpg"
+var file = FileAccess.open(file_path, FileAccess.READ)
+if file == null:
+    push_error("Failed to open file")
+    return
 
-const record = await pb.collection('posts').create(formData);
-"`"
+var file_data = file.get_buffer(file.get_length())
+file.close()
+
+var files = {
+    "image": {
+        "filename": "image.jpg",
+        "content_type": "image/jpeg",
+        "data": file_data
+    }
+}
+
+var record = await pb.collection("posts").create({
+    "title": "Post with Image",
+}, {}, files)
+```
 
 ### Create Record with Relations
 
-"`"javascript
-const record = await pb.collection('posts').create({
-  title: 'My Post',
-  author: 'user_record_id', # Related record ID
-  categories: ['cat1_id', 'cat2_id'], # Multiple relations
-});
-"`"
+```gdscript
+var record = await pb.collection("posts").create({
+    "title": "My Post",
+    "author": "user_record_id",  # Related record ID
+    "categories": ["cat1_id", "cat2_id"],  # Multiple relations
+})
+```
 
 ### Batch Create Records
 
-"`"javascript
-const records = await pb.batch([
-  {
-    "method": 'POST',
-    "url": '/api/collections/posts/records',
-    "body": { title},
-  },
-  {
-    "method": 'POST',
-    "url": '/api/collections/posts/records',
-    "body": { title},
-  },
-]);
-"`"
+```gdscript
+var records = await pb.batch([
+    {
+        "method": "POST",
+        "url": "/api/collections/posts/records",
+        "body": {"title": "Post 1"},
+    },
+    {
+        "method": "POST",
+        "url": "/api/collections/posts/records",
+        "body": {"title": "Post 2"},
+    },
+])
+```
 
 ---
 
@@ -299,31 +332,42 @@ const records = await pb.batch([
 
 ### Update Single Record
 
-"`"javascript
-const updated = await pb.collection('posts').update('record_id', {
-  title: 'Updated Title',
-  content: 'Updated content',
-});
-"`"
+```gdscript
+var updated = await pb.collection("posts").update("record_id", {
+    "title": "Updated Title",
+    "content": "Updated content",
+})
+```
 
 ### Update Record with File
 
-"`"javascript
-const formData = new FormData();
-formData.append('title', 'Updated Title');
-formData.append('image', newFile);
+```gdscript
+# Read new file
+var file = FileAccess.open("res://new_image.jpg", FileAccess.READ)
+var file_data = file.get_buffer(file.get_length())
+file.close()
 
-const updated = await pb.collection('posts').update('record_id', formData);
-"`"
+var files = {
+    "image": {
+        "filename": "new_image.jpg",
+        "content_type": "image/jpeg",
+        "data": file_data
+    }
+}
+
+var updated = await pb.collection("posts").update("record_id", {
+    "title": "Updated Title",
+}, {}, files)
+```
 
 ### Partial Update
 
-"`"javascript
+```gdscript
 # Only update specific fields
-const updated = await pb.collection('posts').update('record_id', {
-  views: 100, # Only update views
-});
-"`"
+var updated = await pb.collection("posts").update("record_id", {
+    "views": 100,  # Only update views
+})
+```
 
 ---
 
@@ -331,31 +375,35 @@ const updated = await pb.collection('posts').update('record_id', {
 
 ### Delete Single Record
 
-"`"javascript
-await pb.collection('posts').delete('record_id');
-"`"
+```gdscript
+var result = await pb.collection("posts").delete("record_id")
+if result is ClientResponseError:
+    push_error("Failed to delete: " + result.to_string())
+```
 
 ### Delete Multiple Records
 
-"`"javascript
+```gdscript
 # Using batch
 await pb.batch([
-  {
-    method: 'DELETE',
-    url: '/api/collections/posts/records/record_id_1',
-  },
-  {
-    method: 'DELETE',
-    url: '/api/collections/posts/records/record_id_2',
-  },
-]);
-"`"
+    {
+        "method": "DELETE",
+        "url": "/api/collections/posts/records/record_id_1",
+    },
+    {
+        "method": "DELETE",
+        "url": "/api/collections/posts/records/record_id_2",
+    },
+])
+```
 
 ### Delete All Records (Truncate)
 
-"`"javascript
-await pb.collections.truncate('posts');
-"`"
+```gdscript
+var result = await pb.collections.truncate("posts")
+if result is ClientResponseError:
+    push_error("Failed to truncate: " + result.to_string())
+```
 
 ---
 
@@ -363,97 +411,102 @@ await pb.collections.truncate('posts');
 
 ### List Records with Pagination
 
-"`"javascript
-const result = await pb.collection('posts').getList(1, 50);
+```gdscript
+var result = await pb.collection("posts").get_list(1, 50)
 
-print(result.page);        # 1
-print(result.perPage);     # 50
-print(result.totalItems);  # Total count
-print(result.items);       # Array of records
-"`"
+if result is ClientResponseError:
+    push_error("Failed to get list: " + result.to_string())
+    return
+
+print(result.page)        # 1
+print(result.perPage)     # 50
+print(result.totalItems)  # Total count
+print(result.items)       # Array of records
+```
 
 ### Filter Records
 
-"`"javascript
-const result = await pb.collection('posts').getList(1, 50, {
-  filter: 'published = true && views > 100',
-  sort: '-created',
-});
-"`"
+```gdscript
+var result = await pb.collection("posts").get_list(1, 50, {
+    "filter": "published = true && views > 100",
+    "sort": "-created",
+})
+```
 
 ### Filter Operators
 
-"`"javascript
+```gdscript
 # Equality
-filter: 'status = "published"'
+"filter": "status = \"published\""
 
 # Comparison
-filter: 'views > 100'
-filter: 'created >= "2023-01-01"'
+"filter": "views > 100"
+"filter": "created >= \"2023-01-01\""
 
 # Text search
-filter: 'title ~ "javascript"'
+"filter": "title ~ \"javascript\""
 
 # Multiple conditions
-filter: 'status = "published" && views > 100'
-filter: 'status = "draft" || status = "pending"'
+"filter": "status = \"published\" && views > 100"
+"filter": "status = \"draft\" || status = \"pending\""
 
 # Relation filter
-filter: 'author.id = "user_id"'
-"`"
+"filter": "author.id = \"user_id\""
+```
 
 ### Sort Records
 
-"`"javascript
+```gdscript
 # Single field
-sort: '-created'  # DESC
-sort: 'title'     # ASC
+"sort": "-created"  # DESC
+"sort": "title"     # ASC
 
 # Multiple fields
-sort: '-created,title'  # DESC by created, then ASC by title
-"`"
+"sort": "-created,title"  # DESC by created, then ASC by title
+```
 
 ### Expand Relations
 
-"`"javascript
-const result = await pb.collection('posts').getList(1, 50, {
-  expand: 'author,categories',
-});
+```gdscript
+var result = await pb.collection("posts").get_list(1, 50, {
+    "expand": "author,categories",
+})
 
-# Access expanded data
-result.items.for_each(post => {
-  print(post.expand.author.name);
-  print(post.expand.categories);
-});
-"`"
+if not result is ClientResponseError:
+    # Access expanded data
+    for post in result.items:
+        var author = post.get("expand", {}).get("author", {})
+        print(author.get("name", ""))
+        print(post.get("expand", {}).get("categories", []))
+```
 
 ### Get Single Record
 
-"`"javascript
-const record = await pb.collection('posts').getOne('record_id', {
-  expand: 'author',
-});
-"`"
+```gdscript
+var record = await pb.collection("posts").get_one("record_id", {
+    "expand": "author",
+})
+```
 
 ### Get First Matching Record
 
-"`"javascript
-const record = await pb.collection('posts').getFirstListItem(
-  'slug = "my-post-slug"',
-  {
-    expand: 'author',
-  }
-);
-"`"
+```gdscript
+var record = await pb.collection("posts").get_first_list_item(
+    "slug = \"my-post-slug\"",
+    {
+        "expand": "author",
+    }
+)
+```
 
 ### Get All Records
 
-"`"javascript
-const allRecords = await pb.collection('posts').getFullList({
-  filter: 'published = true',
-  sort: '-created',
-});
-"`"
+```gdscript
+var all_records = await pb.collection("posts").get_full_list({
+    "filter": "published = true",
+    "sort": "-created",
+})
+```
 
 ---
 
@@ -461,38 +514,39 @@ const allRecords = await pb.collection('posts').getFullList({
 
 ### Add Field
 
-"`"javascript
-const collection = await pb.collections.addField('posts', {
-  name: 'tags',
-  type: 'select',
-  options: {
-    values: ['tech', 'science', 'art'],
-  },
-});
-"`"
+```gdscript
+var collection = await pb.collections.add_field("posts", {
+    "name": "tags",
+    "type": "select",
+    "options": {
+        "values": ["tech", "science", "art"],
+    },
+})
+```
 
 ### Update Field
 
-"`"javascript
-const collection = await pb.collections.updateField('posts', 'tags', {
-  options: {
-    values: ['tech', 'science', 'art', 'music'],
-  },
-});
-"`"
+```gdscript
+var collection = await pb.collections.update_field("posts", "tags", {
+    "options": {
+        "values": ["tech", "science", "art", "music"],
+    },
+})
+```
 
 ### Remove Field
 
-"`"javascript
-const collection = await pb.collections.removeField('posts', 'old_field');
-"`"
+```gdscript
+var collection = await pb.collections.remove_field("posts", "old_field")
+```
 
 ### Get Field Information
 
-"`"javascript
-const field = await pb.collections.getField('posts', 'title');
-print(field.type, field.required, field.options);
-"`"
+```gdscript
+var field = await pb.collections.get_field("posts", "title")
+if not field is ClientResponseError:
+    print(field.type, field.required, field.options)
+```
 
 ---
 
@@ -500,43 +554,50 @@ print(field.type, field.required, field.options);
 
 ### Get All Fields for a Collection
 
-"`"javascript
-const collection = await pb.collections.getOne('posts');
-collection.fields.for_each(field => {
-  print(field.name, field.type, field.required);
-});
-"`"
+```gdscript
+var collection = await pb.collections.get_one("posts")
+if not collection is ClientResponseError:
+    for field in collection.fields:
+        print(field.name, field.type, field.required)
+```
 
 ### Get Collection Schema (Simplified)
 
-"`"javascript
-const schema = await pb.collections.getSchema('posts');
-print(schema.fields); # Array of field info
-"`"
+```gdscript
+var schema = await pb.collections.get_schema("posts")
+if not schema is ClientResponseError:
+    print(schema.fields)  # Array of field info
+```
 
 ### Get All Collection Schemas
 
-"`"javascript
-const schemas = await pb.collections.getAllSchemas();
-schemas.collections.for_each(collection => {
-  print(collection.name, collection.fields);
-});
-"`"
+```gdscript
+var schemas = await pb.collections.get_all_schemas()
+if not schemas is ClientResponseError:
+    for collection in schemas.collections:
+        print(collection.name, collection.fields)
+```
 
 ### Query Field Information for Single Collection
 
-"`"javascript
+```gdscript
 # Method 1: Get full collection
-const collection = await pb.collections.getOne('posts');
-const titleField = collection.fields.find(f => f.name === 'title');
+var collection = await pb.collections.get_one("posts")
+if not collection is ClientResponseError:
+    for field in collection.fields:
+        if field.name == "title":
+            print("Found title field")
 
 # Method 2: Get specific field
-const field = await pb.collections.getField('posts', 'title');
+var field = await pb.collections.get_field("posts", "title")
 
 # Method 3: Get schema
-const schema = await pb.collections.getSchema('posts');
-const titleFieldInfo = schema.fields.find(f => f.name === 'title');
-"`"
+var schema = await pb.collections.get_schema("posts")
+if not schema is ClientResponseError:
+    for f in schema.fields:
+        if f.name == "title":
+            print("Found title field info")
+```
 
 ---
 
@@ -544,46 +605,69 @@ const titleFieldInfo = schema.fields.find(f => f.name === 'title');
 
 ### Upload File with Record Creation
 
-"`"javascript
-const formData = new FormData();
-formData.append('title', 'Post Title');
-formData.append('image', fileInput.files[0]);
+```gdscript
+var file = FileAccess.open("res://image.jpg", FileAccess.READ)
+var file_data = file.get_buffer(file.get_length())
+file.close()
 
-const record = await pb.collection('posts').create(formData);
-"`"
+var files = {
+    "image": {
+        "filename": "image.jpg",
+        "content_type": "image/jpeg",
+        "data": file_data
+    }
+}
+
+var record = await pb.collection("posts").create({
+    "title": "Post Title",
+}, {}, files)
+```
 
 ### Upload File with Record Update
 
-"`"javascript
-const formData = new FormData();
-formData.append('image', newFile);
+```gdscript
+var file = FileAccess.open("res://new_image.jpg", FileAccess.READ)
+var file_data = file.get_buffer(file.get_length())
+file.close()
 
-const updated = await pb.collection('posts').update('record_id', formData);
-"`"
+var files = {
+    "image": {
+        "filename": "new_image.jpg",
+        "content_type": "image/jpeg",
+        "data": file_data
+    }
+}
+
+var updated = await pb.collection("posts").update("record_id", {}, {}, files)
+```
 
 ### Get File URL
 
-"`"javascript
-const record = await pb.collection('posts').getOne('record_id');
-const fileUrl = pb.files.getURL(record, record.image);
-"`"
+```gdscript
+var record = await pb.collection("posts").get_one("record_id")
+if not record is ClientResponseError:
+    var file_url = pb.files.get_url(record, record.get("image", ""))
+    print("File URL: ", file_url)
+```
 
 ### Get File URL with Options
 
-"`"javascript
-const fileUrl = pb.files.getURL(record, record.image, {
-  thumb: '100x100',  # Thumbnail
-  download: true,    # Force download
-});
-"`"
+```gdscript
+var file_url = pb.files.get_url(record, record.get("image", ""), {
+    "thumb": "100x100",  # Thumbnail
+    "download": true,    # Force download
+})
+```
 
 ### Get Private File Token
 
-"`"javascript
+```gdscript
 # For accessing private files
-const token = await pb.files.getToken();
-# Use token in file URL query params
-"`"
+var token = await pb.files.get_token()
+if not token is ClientResponseError:
+    # Use token in file URL query params
+    print("Token: ", token)
+```
 
 ---
 
@@ -591,46 +675,48 @@ const token = await pb.files.getToken();
 
 ### List Logs
 
-"`"javascript
-const logs = await pb.logs.getList(1, 50);
-print(logs.items); # Array of log entries
-"`"
+```gdscript
+var logs = await pb.logs.get_list(1, 50)
+if not logs is ClientResponseError:
+    print(logs.items)  # Array of log entries
+```
 
 ### Filter Logs
 
-"`"javascript
-const logs = await pb.logs.getList(1, 50, {
-  filter: 'level >= 400', # Error level and above
-  sort: '-created',
-});
-"`"
+```gdscript
+var logs = await pb.logs.get_list(1, 50, {
+    "filter": "level >= 400",  # Error level and above
+    "sort": "-created",
+})
+```
 
 ### Get Single Log
 
-"`"javascript
-const log = await pb.logs.getOne('log_id');
-print(log.message, log.data);
-"`"
+```gdscript
+var log = await pb.logs.get_one("log_id")
+if not log is ClientResponseError:
+    print(log.message, log.data)
+```
 
 ### Get Log Statistics
 
-"`"javascript
-const stats = await pb.logs.getStats({
-  filter: 'level >= 400',
-});
+```gdscript
+var stats = await pb.logs.get_stats({
+    "filter": "level >= 400",
+})
 
-stats.for_each(stat => {
-  print(stat.date, stat.total);
-});
-"`"
+if not stats is ClientResponseError:
+    for stat in stats:
+        print(stat.date, stat.total)
+```
 
 ### Log Levels
 
-- "0" - Debug
-- "1" - Info
-- "2" - Warning
-- "3" - Error
-- "4" - Fatal
+- `0` - Debug
+- `1` - Info
+- `2` - Warning
+- `3` - Error
+- `4` - Fatal
 
 ---
 
@@ -640,24 +726,30 @@ stats.for_each(stat => {
 
 ### Trigger Email Verification
 
-"`"javascript
+```gdscript
 # Request verification email
-await pb.collection('users').requestVerification('user@example.com');
-"`"
+var result = await pb.collection("users").request_verification("user@example.com")
+if result is ClientResponseError:
+    push_error("Failed to request verification: " + result.to_string())
+```
 
 ### Trigger Password Reset Email
 
-"`"javascript
+```gdscript
 # Request password reset email
-await pb.collection('users').requestPasswordReset('user@example.com');
-"`"
+var result = await pb.collection("users").request_password_reset("user@example.com")
+if result is ClientResponseError:
+    push_error("Failed to request password reset: " + result.to_string())
+```
 
 ### Email Change Request
 
-"`"javascript
+```gdscript
 # Request email change
-await pb.collection('users').requestEmailChange('newemail@example.com');
-"`"
+var result = await pb.collection("users").request_email_change("newemail@example.com")
+if result is ClientResponseError:
+    push_error("Failed to request email change: " + result.to_string())
+```
 
 ### Server-Side Email Sending
 
@@ -668,7 +760,7 @@ Email sending is configured in the backend settings and triggered automatically 
 - Custom hooks
 
 To send custom emails, you would typically:
-1. Create a backend hook that uses "app.NewMailClient()"
+1. Create a backend hook that uses `app.NewMailClient()`
 2. Or use the admin API to configure email templates
 3. Or trigger email-related record operations that automatically send emails
 
@@ -676,62 +768,67 @@ To send custom emails, you would typically:
 
 ## Complete Example: Full Application Flow
 
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
-async function setupApplication() {
-  # 1. Authenticate
-  await pb.collection('users').authWithPassword('admin@example.com', 'password');
-  
-  # 2. Create collection
-  const collection = await pb.collections.create({
-    "name": 'posts',
-    "type": 'base',
-    "fields": [
-      { "name": 'title', "type": 'text', required},
-      { "name": 'content', type},
-      { "name": 'published', type},
-    ],
-  });
-  
-  # 3. Add more fields
-  await pb.collections.addField('posts', {
-    name: 'views',
-    type: 'number',
-    min: 0,
-  });
-  
-  # 4. Create records
-  const post = await pb.collection('posts').create({
-    title: 'Hello World',
-    content: 'My first post',
-    published: true,
-    views: 0,
-  });
-  
-  # 5. Query records
-  const posts = await pb.collection('posts').getList(1, 10, {
-    filter: 'published = true',
-    sort: '-created',
-  });
-  
-  # 6. Update record
-  await pb.collection('posts').update(post.id, {
-    views: 100,
-  });
-  
-  # 7. Query logs
-  const logs = await pb.logs.getList(1, 20, {
-    filter: 'level >= 400',
-  });
-  
-  print('Application setup complete!');
-}
-
-setupApplication().catch(console.error);
-"`"
+func setup_application() -> void:
+    # 1. Authenticate
+    var auth = await pb.collection("users").auth_with_password("admin@example.com", "password")
+    if auth is ClientResponseError:
+        push_error("Authentication failed: " + auth.to_string())
+        return
+    
+    # 2. Create collection
+    var collection = await pb.collections.create({
+        "name": "posts",
+        "type": "base",
+        "fields": [
+            {"name": "title", "type": "text", "required": true},
+            {"name": "content", "type": "text"},
+            {"name": "published", "type": "bool"},
+        ],
+    })
+    
+    if collection is ClientResponseError:
+        push_error("Failed to create collection: " + collection.to_string())
+        return
+    
+    # 3. Add more fields
+    await pb.collections.add_field("posts", {
+        "name": "views",
+        "type": "number",
+        "min": 0,
+    })
+    
+    # 4. Create records
+    var post = await pb.collection("posts").create({
+        "title": "Hello World",
+        "content": "My first post",
+        "published": true,
+        "views": 0,
+    })
+    
+    # 5. Query records
+    var posts = await pb.collection("posts").get_list(1, 10, {
+        "filter": "published = true",
+        "sort": "-created",
+    })
+    
+    # 6. Update record
+    if not post is ClientResponseError:
+        await pb.collection("posts").update(post.id, {
+            "views": 100,
+        })
+    
+    # 7. Query logs
+    var logs = await pb.logs.get_list(1, 20, {
+        "filter": "level >= 400",
+    })
+    
+    print("Application setup complete!")
+```
 
 ---
 
@@ -739,54 +836,53 @@ setupApplication().catch(console.error);
 
 ### Common Patterns
 
-"`"javascript
+```gdscript
 # Check if authenticated
-if (pb.authStore.isValid) { /* ... */ }
+if pb.auth_store.is_valid:
+    # Do authenticated operations
+    pass
 
 # Get current user
-const user = pb.authStore.record;
+var user = pb.auth_store.record
 
 # Refresh auth token
-await pb.collection('users').authRefresh();
+var refresh = await pb.collection("users").auth_refresh()
 
 # Error handling
-try {
-  await pb.collection('posts').create({ title});
-} catch (err) {
-  if (err.status === 400) {
-    push_error('Validation error:', err.data);
-  } else if (err.status === 401) {
-    push_error('Not authenticated');
-  }
-}
-"`"
+var result = await pb.collection("posts").create({"title": "Test"})
+if result is ClientResponseError:
+    if result.status == 400:
+        push_error("Validation error: ", result.data)
+    elif result.status == 401:
+        push_error("Not authenticated")
+```
 
 ### Field Types Reference
 
-- "text" - Text input
-- "number" - Numeric value
-- "bool" - Boolean
-- "email" - Email address
-- "url" - URL
-- "date" - Date
-- "select" - Single select
-- "json" - JSON data
-- "file" - File upload
-- "relation" - Relation to another collection
-- "editor" - Rich text editor
+- `text` - Text input
+- `number` - Numeric value
+- `bool` - Boolean
+- `email` - Email address
+- `url` - URL
+- `date` - Date
+- `select` - Single select
+- `json` - JSON data
+- `file` - File upload
+- `relation` - Relation to another collection
+- `editor` - Rich text editor
 
 ---
 
 ## Best Practices
 
-1. **Always handle errors**: Wrap API calls in try-catch
-2. **Check authentication**: Verify "pb.authStore.isValid" before operations
+1. **Always handle errors**: Check for `ClientResponseError` after API calls
+2. **Check authentication**: Verify `pb.auth_store.is_valid` before operations
 3. **Use pagination**: Don't fetch all records at once for large collections
 4. **Validate data**: Ensure required fields are provided
 5. **Use filters**: Filter data on the server, not client-side
 6. **Expand relations wisely**: Only expand what you need
-7. **Handle file uploads**: Use FormData for file fields
-8. **Refresh tokens**: Use "authRefresh()" to maintain sessions
+7. **Handle file uploads**: Use file dictionaries for file fields
+8. **Refresh tokens**: Use `auth_refresh()` to maintain sessions
 
 ---
 
@@ -794,32 +890,35 @@ try {
 
 ### Quick Completion
 
-"`"javascript
-const result = await pb.langchaingo.completions({
-  "model": { "provider": "openai", model},
-  messages: [
-    { "role": "system", content},
-    { "role": "user", content}
-  ],
-  temperature: 0.4
-});
+```gdscript
+var result = await pb.langchaingo.completions({
+    "model": {"provider": "openai", "model": "gpt-4"},
+    "messages": [
+        {"role": "system", "content": "You are a helpful assistant"},
+        {"role": "user", "content": "Hello"}
+    ],
+    "temperature": 0.4
+})
 
-print(result.content);
-"`"
+if not result is ClientResponseError:
+    print(result.content)
+```
 
 ### Retrieval-Augmented Answering
 
-"`"javascript
-const rag = await pb.langchaingo.rag({
-  "collection": "knowledge-base",
-  "question": "Why is the sky blue?",
-  "topK": 3,
-  returnSources});
+```gdscript
+var rag = await pb.langchaingo.rag({
+    "collection": "knowledge-base",
+    "question": "Why is the sky blue?",
+    "topK": 3,
+    "returnSources": true,
+})
 
-print(rag.answer);
-print(rag.sources);
-"``
+if not rag is ClientResponseError:
+    print(rag.answer)
+    print(rag.sources)
+```
 
 ---
 
-This guide provides all essential operations for building applications with the BosBase JavaScript SDK. For more detailed information, refer to the specific API documentation files.
+This guide provides all essential operations for building applications with the BosBase GDScript SDK. For more detailed information, refer to the specific API documentation files.

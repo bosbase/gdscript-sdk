@@ -1,4 +1,4 @@
-# Vector Database API
+# Vector Database API - GDScript SDK
 
 Vector database operations for semantic search, RAG (Retrieval-Augmented Generation), and AI applications.
 
@@ -15,58 +15,69 @@ The Vector API provides a unified interface for working with vector embeddings, 
 
 ## Getting Started
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#localhost:8090\")
+var pb = BosBase.new("http://localhost:8090")
 
 # Authenticate as superuser (vectors require superuser auth)
-await pb.admins.authWithPassword('admin@example.com', 'password');
-"`"
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
+```
 
 ## Types
 
 ### VectorEmbedding
+
 Array of numbers representing a vector embedding.
 
-"`"typescript
-type VectorEmbedding = number[];
-"`"
+```gdscript
+# Vector embedding is an array of floats
+var embedding: Array[float] = [0.1, 0.2, 0.3, 0.4]
+```
 
 ### VectorDocument
+
 A vector document with embedding, metadata, and optional content.
 
-"`"typescript
-interface VectorDocument {
-  id?: string;                    # Unique identifier (auto-generated if not provided)
-  "vector": VectorEmbedding;        # The vector embedding
-  metadata?: VectorMetadata;      # Optional metadata (key-value pairs)
-  content?}
-"`"
+```gdscript
+{
+    "id": String,              # Unique identifier (optional, auto-generated if not provided)
+    "vector": Array[float],    # The vector embedding
+    "metadata": Dictionary,    # Optional metadata (key-value pairs)
+    "content": String          # Optional content
+}
+```
 
 ### VectorSearchOptions
+
 Options for vector similarity search.
 
-"`"typescript
-interface VectorSearchOptions {
-  "queryVector": VectorEmbedding;        # Query vector to search for
-  limit?: number;                      # Max results ("default": 10, "max": 100)
-  filter?: VectorMetadata;             # Optional metadata filter
-  minScore?: number;                   # Minimum similarity score threshold
-  maxDistance?: number;                # Maximum distance threshold
-  includeDistance?: boolean;           # Include distance in results
-  includeContent?}
-"`"
+```gdscript
+{
+    "queryVector": Array[float],     # Query vector to search for
+    "limit": int,                    # Max results (default: 10, max: 100)
+    "filter": Dictionary,            # Optional metadata filter
+    "minScore": float,               # Minimum similarity score threshold
+    "maxDistance": float,            # Maximum distance threshold
+    "includeDistance": bool,         # Include distance in results
+    "includeContent": bool           # Include content in results
+}
+```
 
 ### VectorSearchResult
+
 Result from a similarity search.
 
-"`"typescript
-interface VectorSearchResult {
-  "document": VectorDocument;    # The matching document
-  "score": number;               # Similarity score (0-1, higher is better)
-  distance?}
-"`"
+```gdscript
+{
+    "document": Dictionary,    # The matching document
+    "score": float,            # Similarity score (0-1, higher is better)
+    "distance": float          # Distance metric (optional)
+}
+```
 
 ## Collection Management
 
@@ -74,72 +85,79 @@ interface VectorSearchResult {
 
 Create a new vector collection with specified dimension and distance metric.
 
-"`"javascript
-await pb.vectors.createCollection('documents', {
-  dimension: 384,      # Vector dimension (default: 384)
-  distance: 'cosine'   # Distance metric: 'cosine' (default), 'l2', 'dot'
-});
+```gdscript
+var result = await pb.vectors.create_collection("documents", {
+    "dimension": 384,      # Vector dimension (default: 384)
+    "distance": "cosine"   # Distance metric: "cosine" (default), "l2", "dot"
+})
 
 # Minimal example (uses defaults)
-await pb.vectors.createCollection('documents');
-"`"
+var result2 = await pb.vectors.create_collection("documents")
+```
 
 **Parameters:**
-- "name" (string): Collection name
-- "config" (object, optional):
-  - "dimension" (number, optional): Vector dimension. Default: 384
-  - "distance" (string, optional): Distance metric. Default: 'cosine'
-  - Options: 'cosine', 'l2', 'dot'
+- `name` (string): Collection name
+- `config` (dictionary, optional):
+  - `dimension` (int, optional): Vector dimension. Default: 384
+  - `distance` (string, optional): Distance metric. Default: "cosine"
+  - Options: "cosine", "l2", "dot"
 
 ### List Collections
 
 Get all available vector collections.
 
-"`"javascript
-const collections = await pb.vectors.listCollections();
+```gdscript
+var collections = await pb.vectors.list_collections()
 
-collections.for_each(collection => {
-  print("${collection.name}: ${collection.count} vectors");
-});
-"`"
+if collections is ClientResponseError:
+    push_error("Failed to list collections: " + collections.to_string())
+    return
+
+for collection in collections:
+    print("%s: %d vectors" % [collection.name, collection.get("count", 0)])
+```
 
 **Response:**
-"`"typescript
-Array<{
-  "name": string;
-  count?: number;
-  dimension?}>
-"`"
+```gdscript
+Array[{
+    "name": String,
+    "count": int,      # Optional
+    "dimension": int   # Optional
+}]
+```
 
 ### Update Collection
 
 Update a vector collection configuration (distance metric and options).
 Note: Collection name and dimension cannot be changed after creation.
 
-"`"javascript
-await pb.vectors.updateCollection('documents', {
-  distance});
+```gdscript
+await pb.vectors.update_collection("documents", {
+    "distance": "l2"
+})
 
 # Update with options
-await pb.vectors.updateCollection('documents', {
-  "distance": 'inner_product',
-  "options": { customOption}
-});
-"`"
+await pb.vectors.update_collection("documents", {
+    "distance": "inner_product",
+    "options": {"customOption": "value"}
+})
+```
 
 **Parameters:**
-- "name" (string): Collection name
-- "config" (object, optional):
-  - "distance" (string, optional): Distance metric to update. Options: 'cosine', 'l2', 'inner_product'
-  - "options" (object, optional): Custom collection options
+- `name` (string): Collection name
+- `config` (dictionary, optional):
+  - `distance` (string, optional): Distance metric to update. Options: "cosine", "l2", "inner_product"
+  - `options` (dictionary, optional): Custom collection options
 
 ### Delete Collection
 
 Delete a vector collection and all its data.
 
-"`"javascript
-await pb.vectors.deleteCollection('documents');
-"`"
+```gdscript
+var result = await pb.vectors.delete_collection("documents")
+if result is ClientResponseError:
+    push_error("Failed to delete collection: " + result.to_string())
+```
 
 **⚠️ Warning**: This permanently deletes the collection and all vectors in it!
 
@@ -149,121 +167,144 @@ await pb.vectors.deleteCollection('documents');
 
 Insert a single vector document.
 
-"`"javascript
+```gdscript
 # With custom ID
-const result = await pb.vectors.insert({
-  id: 'doc_001',
-  vector: [0.1, 0.2, 0.3, 0.4],
-  metadata: { category: 'tech', tags: ['AI', 'ML'] },
-  content: 'Document about machine learning'
-}, { collection});
+var result = await pb.vectors.insert({
+    "id": "doc_001",
+    "vector": [0.1, 0.2, 0.3, 0.4],
+    "metadata": {"category": "tech", "tags": ["AI", "ML"]},
+    "content": "Document about machine learning"
+}, {"collection": "documents"})
 
-print('Inserted:', result.id);
+if result is ClientResponseError:
+    push_error("Failed to insert document: " + result.to_string())
+    return
+
+print("Inserted: ", result.id)
 
 # Without ID (auto-generated)
-const result2 = await pb.vectors.insert({
-  "vector": [0.5, 0.6, 0.7, 0.8],
-  content}, { collection});
-"`"
+var result2 = await pb.vectors.insert({
+    "vector": [0.5, 0.6, 0.7, 0.8],
+    "content": "Another document"
+}, {"collection": "documents"})
+```
 
 **Response:**
-"`"typescript
+```gdscript
 {
-  "id": string;        # The document ID
-  success}
-"`"
+    "id": String,        # The document ID
+    "success": bool
+}
+```
 
 ### Batch Insert
 
 Insert multiple vector documents efficiently.
 
-"`"javascript
-const result = await pb.vectors.batchInsert({
-  "documents": [
-    { "vector": [0.1, 0.2, 0.3], "metadata": { cat}, content: 'Doc A' },
-    { "vector": [0.4, 0.5, 0.6], "metadata": { cat}, content: 'Doc B' },
-    { "vector": [0.7, 0.8, 0.9], "metadata": { cat}, content: 'Doc C' },
-  ],
-  skipDuplicates: true  # Skip documents with duplicate IDs
-}, { collection});
+```gdscript
+var result = await pb.vectors.batch_insert({
+    "documents": [
+        {"vector": [0.1, 0.2, 0.3], "metadata": {"cat": "A"}, "content": "Doc A"},
+        {"vector": [0.4, 0.5, 0.6], "metadata": {"cat": "B"}, "content": "Doc B"},
+        {"vector": [0.7, 0.8, 0.9], "metadata": {"cat": "C"}, "content": "Doc C"},
+    ],
+    "skipDuplicates": true  # Skip documents with duplicate IDs
+}, {"collection": "documents"})
 
-print("Inserted: ${result.insertedCount}");
-print("Failed: ${result.failedCount}");
-print('IDs:', result.ids);
-"`"
+if result is ClientResponseError:
+    push_error("Failed to batch insert: " + result.to_string())
+    return
+
+print("Inserted: ", result.insertedCount)
+print("Failed: ", result.failedCount)
+print("IDs: ", result.ids)
+```
 
 **Response:**
-"`"typescript
+```gdscript
 {
-  "insertedCount": number;   # Number of successfully inserted vectors
-  "failedCount": number;     # Number of failed insertions
-  "ids": string[];           # List of inserted document IDs
-  errors?}
-"`"
+    "insertedCount": int,    # Number of successfully inserted vectors
+    "failedCount": int,      # Number of failed insertions
+    "ids": Array[String],    # List of inserted document IDs
+    "errors": Array          # Optional error details
+}
+```
 
 ### Get Document
 
 Retrieve a vector document by ID.
 
-"`"javascript
-const doc = await pb.vectors.get('doc_001', { collection});
-print('Vector:', doc.vector);
-print('Content:', doc.content);
-print('Metadata:', doc.metadata);
-"`"
+```gdscript
+var doc = await pb.vectors.get("doc_001", {"collection": "documents"})
+
+if doc is ClientResponseError:
+    push_error("Failed to get document: " + doc.to_string())
+    return
+
+print("Vector: ", doc.vector)
+print("Content: ", doc.content)
+print("Metadata: ", doc.metadata)
+```
 
 ### Update Document
 
 Update an existing vector document.
 
-"`"javascript
+```gdscript
 # Update all fields
-await pb.vectors.update('doc_001', {
-  "vector": [0.9, 0.8, 0.7, 0.6],
-  "metadata": { updated},
-  content: 'Updated content'
-}, { collection});
+await pb.vectors.update("doc_001", {
+    "vector": [0.9, 0.8, 0.7, 0.6],
+    "metadata": {"updated": true},
+    "content": "Updated content"
+}, {"collection": "documents"})
 
 # Partial update (only metadata and content)
-await pb.vectors.update('doc_001', {
-  "metadata": { category},
-  content: 'New content'
-}, { collection});
-"`"
+await pb.vectors.update("doc_001", {
+    "metadata": {"category": "updated"},
+    "content": "New content"
+}, {"collection": "documents"})
+```
 
 ### Delete Document
 
 Delete a vector document.
 
-"`"javascript
-await pb.vectors.delete('doc_001', { collection});
-"`"
+```gdscript
+var result = await pb.vectors.delete("doc_001", {"collection": "documents"})
+if result is ClientResponseError:
+    push_error("Failed to delete document: " + result.to_string())
+```
 
 ### List Documents
 
 List all documents in a collection with pagination.
 
-"`"javascript
+```gdscript
 # Get first page
-const result = await pb.vectors.list({
-  "page": 1,
-  perPage}, { collection});
+var result = await pb.vectors.list({
+    "page": 1,
+    "perPage": 50
+}, {"collection": "documents"})
 
-print("Page ${result.page} of ${result.totalPages}");
-result.items.for_each(item => {
-  print(item.id, item.content);
-});
-"`"
+if result is ClientResponseError:
+    push_error("Failed to list documents: " + result.to_string())
+    return
+
+print("Page %d of %d" % [result.page, result.totalPages])
+for item in result.items:
+    print(item.id, item.content)
+```
 
 **Response:**
-"`"typescript
+```gdscript
 {
-  "page": number;
-  "perPage": number;
-  "totalItems": number;
-  "totalPages": number;
-  items}
-"`"
+    "page": int,
+    "perPage": int,
+    "totalItems": int,
+    "totalPages": int,
+    "items": Array[VectorDocument]
+}
+```
 
 ## Vector Search
 
@@ -271,147 +312,115 @@ result.items.for_each(item => {
 
 Perform similarity search on vectors.
 
-"`"javascript
-const results = await pb.vectors.search({
-  "queryVector": [0.1, 0.2, 0.3, 0.4],
-  limit}, { collection});
+```gdscript
+var results = await pb.vectors.search({
+    "queryVector": [0.1, 0.2, 0.3, 0.4],
+    "limit": 10
+}, {"collection": "documents"})
 
-results.results.for_each(result => {
-  print("Score} - ${result.document.content}");
-});
-"`"
+if results is ClientResponseError:
+    push_error("Search failed: " + results.to_string())
+    return
+
+for result in results.results:
+    print("Score: %.2f - %s" % [result.score, result.document.content])
+```
 
 ### Advanced Search
 
-"`"javascript
-const results = await pb.vectors.search({
-  "queryVector": [0.1, 0.2, 0.3, 0.4],
-  "limit": 20,
-  "minScore": 0.7,              # Minimum similarity threshold
-  "maxDistance": 0.3,           # Maximum distance threshold
-  "includeDistance": true,      # Include distance metric
-  "includeContent": true,       # Include full content
-  "filter": { category} # Filter by metadata
-}, { collection});
+```gdscript
+var results = await pb.vectors.search({
+    "queryVector": [0.1, 0.2, 0.3, 0.4],
+    "limit": 20,
+    "minScore": 0.7,              # Minimum similarity threshold
+    "maxDistance": 0.3,           # Maximum distance threshold
+    "includeDistance": true,      # Include distance metric
+    "includeContent": true,       # Include full content
+    "filter": {"category": "tech"}  # Filter by metadata
+}, {"collection": "documents"})
 
-print("Found ${results.totalMatches} matches in ${results.queryTime}ms");
-results.results.for_each(r => {
-  print("Score}, Distance: ${r.distance}");
-  print("Content: ${r.document.content}");
-});
-"`"
+if results is ClientResponseError:
+    push_error("Search failed: " + results.to_string())
+    return
+
+print("Found %d matches in %dms" % [results.totalMatches, results.queryTime])
+for r in results.results:
+    print("Score: %.2f, Distance: %.2f" % [r.score, r.distance])
+    print("Content: ", r.document.content)
+```
 
 **Response:**
-"`"typescript
+```gdscript
 {
-  "results": VectorSearchResult[];
-  totalMatches?: number;
-  queryTime?}
-"`"
+    "results": Array[VectorSearchResult],
+    "totalMatches": int,      # Optional
+    "queryTime": int          # Optional (milliseconds)
+}
+```
 
 ## Common Use Cases
 
 ### Semantic Search
 
-"`"javascript
+```gdscript
 # 1. Generate embeddings for your documents
-const documents = [
-  { "text": 'Introduction to machine learning', id},
-  { "text": 'Deep learning fundamentals', id},
-  { "text": 'Natural language processing', id},
-];
+var documents = [
+    {"text": "Introduction to machine learning", "id": "doc1"},
+    {"text": "Deep learning fundamentals", "id": "doc2"},
+    {"text": "Natural language processing", "id": "doc3"},
+]
 
-for (const doc of documents) {
-  # Generate embedding using your model
-  const embedding = await generateEmbedding(doc.text);
-  
-  await pb.vectors.insert({
-    "id": doc.id,
-    "vector": embedding,
-    "content": doc.text,
-    "metadata": { type}
-  }, { collection});
-}
+for doc in documents:
+    # Generate embedding using your model
+    var embedding = await generate_embedding(doc.text)
+    
+    await pb.vectors.insert({
+        "id": doc.id,
+        "vector": embedding,
+        "content": doc.text,
+        "metadata": {"type": "article"}
+    }, {"collection": "documents"})
 
 # 2. Search
-const queryEmbedding = await generateEmbedding('What is AI?');
-const results = await pb.vectors.search({
-  "queryVector": queryEmbedding,
-  "limit": 5,
-  minScore}, { collection});
+var query_embedding = await generate_embedding("What is AI?")
+var results = await pb.vectors.search({
+    "queryVector": query_embedding,
+    "limit": 5,
+    "minScore": 0.7
+}, {"collection": "documents"})
 
-results.results.for_each(r => {
-  print("${r.score.toFixed(2)}: ${r.document.content}");
-});
-"`"
+if not results is ClientResponseError:
+    for r in results.results:
+        print("%.2f: %s" % [r.score, r.document.content])
+```
 
 ### RAG (Retrieval-Augmented Generation)
 
-"`"javascript
-async function retrieveContext(query, limit = 5) {
-  const queryEmbedding = await generateEmbedding(query);
-  
-  const results = await pb.vectors.search({
-    "queryVector": queryEmbedding,
-    "limit": limit,
-    "minScore": 0.75,
-    includeContent}, { collection});
-  
-  return results.results.map(r => r.document.content);
-}
+```gdscript
+func retrieve_context(query: String, limit: int = 5) -> Array[String]:
+    var query_embedding = await generate_embedding(query)
+    
+    var results = await pb.vectors.search({
+        "queryVector": query_embedding,
+        "limit": limit,
+        "minScore": 0.75,
+        "includeContent": true
+    }, {"collection": "documents"})
+    
+    if results is ClientResponseError:
+        push_error("Failed to search: " + results.to_string())
+        return []
+    
+    var context = []
+    for r in results.results:
+        context.append(r.document.content)
+    
+    return context
 
 # Use with your LLM
-const context = await retrieveContext('What are best practices for security?');
-const answer = await llm.generate(context, userQuery);
-"`"
-
-### Recommendation System
-
-"`"javascript
-# Store user profile embeddings
-await pb.vectors.insert({
-  "id": userId,
-  "vector": userProfileEmbedding,
-  "metadata": {
-    "preferences": ['tech', 'science'],
-    "demographics": { "age": 30, location}
-  }
-}, { collection});
-
-# Find similar users
-const similarUsers = await pb.vectors.search({
-  "queryVector": currentUserEmbedding,
-  "limit": 20,
-  includeDistance}, { collection});
-
-# Generate recommendations based on similar users
-const recommendations = await generateRecommendations(similarUsers);
-"`"
-
-### Multi-modal Search
-
-"`"javascript
-# Store embeddings from different sources
-await pb.vectors.insert({
-  "id": 'image_001',
-  "vector": imageEmbedding,
-  "metadata": { "type": 'image', "url": 'https},
-  content: 'Description of the image'
-}, { collection});
-
-await pb.vectors.insert({
-  "id": 'video_001',
-  "vector": videoEmbedding,
-  "metadata": { "type": 'video', duration},
-  content: 'Video transcript'
-}, { collection});
-
-# Search across all media types
-const results = await pb.vectors.search({
-  "queryVector": queryEmbedding,
-  "limit": 10,
-  includeContent}, { collection});
-"`"
+var context = await retrieve_context("What are best practices for security?")
+# Build prompt with context and generate answer
+```
 
 ## Best Practices
 
@@ -419,19 +428,19 @@ const results = await pb.vectors.search({
 
 Choose the right dimension for your use case:
 
-- **OpenAI embeddings**: 1536 ("text-embedding-3-large")
+- **OpenAI embeddings**: 1536 (`text-embedding-3-large`)
 - **Sentence Transformers**: 384-768
-  - "all-MiniLM-L6-v2": 384
-  - "all-mpnet-base-v2": 768
+  - `all-MiniLM-L6-v2`: 384
+  - `all-mpnet-base-v2`: 768
 - **Custom models**: Match your model's output
 
 ### Distance Metrics
 
 | Metric | Best For | Notes |
 |--------|----------|-------|
-| "cosine" | Text embeddings | Works well with normalized vectors |
-| "l2" | General similarity | Euclidean distance |
-| "dot" | Performance | Requires normalized vectors |
+| `cosine` | Text embeddings | Works well with normalized vectors |
+| `l2` | General similarity | Euclidean distance |
+| `dot` | Performance | Requires normalized vectors |
 
 ### Performance Tips
 
@@ -448,166 +457,22 @@ Choose the right dimension for your use case:
 
 ## Error Handling
 
-"`"javascript
-try {
-  await pb.vectors.search({
-    queryVector: [0.1, 0.2, 0.3]
-  }, { collection});
-} catch (error) {
-  if (error.status === 404) {
-    push_error('Collection not found');
-  } else if (error.status === 400) {
-    push_error('Invalid request:', error.response);
-  } else {
-    push_error('Error:', error);
-  }
-}
-"`"
+```gdscript
+var results = await pb.vectors.search({
+    "queryVector": [0.1, 0.2, 0.3]
+}, {"collection": "documents"})
 
-## Examples
-
-### Complete RAG Application
-
-"`"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
-import { OpenAI } from 'openai';
-
-var pb = BosBase.new(\"http:#localhost:8090\")
-const openai = new OpenAI({ apiKey});
-
-# Initialize
-await pb.admins.authWithPassword('admin@example.com', 'password');
-
-# 1. Create knowledge base collection
-await pb.vectors.createCollection('knowledge_base', {
-  "dimension": 1536,  # OpenAI dimensions
-  distance});
-
-# 2. Index documents
-async function indexDocuments(documents) {
-  for (const doc of documents) {
-    # Generate OpenAI embedding
-    const embedding = await openai.embeddings.create({
-      "model": 'text-embedding-3-large',
-      input});
-    
-    await pb.vectors.insert({
-      "id": doc.id,
-      "vector": embedding.data[0].embedding,
-      "content": doc.content,
-      "metadata": { "source": doc.source, topic}
-    }, { collection});
-  }
-}
-
-# 3. RAG Query
-async function ask(question) {
-  # Generate query embedding
-  const embedding = await openai.embeddings.create({
-    "model": 'text-embedding-3-large',
-    input});
-  
-  # Search for relevant context
-  const results = await pb.vectors.search({
-    "queryVector": embedding.data[0].embedding,
-    "limit": 5,
-    "minScore": 0.8,
-    "includeContent": true,
-    "filter": { topic}
-  }, { collection});
-  
-  # Build context
-  const context = results.results
-    .map(r => r.document.content)
-    .join('\n\n');
-  
-  # Generate answer with LLM
-  const completion = await openai.chat.completions.create({
-    "model": 'gpt-4',
-    "messages": [
-      { "role": 'system', content},
-      { "role": 'user', "content": "Context}\n\nQuestion: ${question}" }
-    ]
-  });
-  
-  return completion.choices[0].message.content;
-}
-
-# Use it
-const answer = await ask('What is machine learning?');
-print(answer);
-"`"
-
-### Product Recommendations
-
-"`"javascript
-# Store product embeddings
-async function indexProducts(products) {
-  for (const product of products) {
-    const embedding = await generateProductEmbedding(product);
-    
-    await pb.vectors.insert({
-      "id": product.id,
-      "vector": embedding,
-      "metadata": {
-        "category": product.category,
-        "price": product.price,
-        brand},
-      content: "${product.name} - ${product.description}"
-    }, { collection});
-  }
-}
-
-# Recommend products similar to user's purchase history
-async function recommendProducts(userId) {
-  # Get user's preferred products
-  const userProducts = await getUserFavoriteProducts(userId);
-  const productEmbeddings = userProducts.map(p => p.embedding);
-  
-  # Average embeddings to get user preference
-  const avgEmbedding = averageEmbeddings(productEmbeddings);
-  
-  # Search for similar products
-  const results = await pb.vectors.search({
-    "queryVector": avgEmbedding,
-    "limit": 20,
-    "minScore": 0.7,
-    "filter": { category}
-  }, { collection});
-  
-  return results.results.map(r => r.document.id);
-}
-"`"
-
-## Migration from Other Databases
-
-"`"javascript
-# Migrate from Pinecone
-async function migrateFromPinecone() {
-  # 1. Export from Pinecone
-  const pineconeVectors = await exportFromPinecone();
-  
-  # 2. Create collection
-  await pb.vectors.createCollection('migrated', {
-    "dimension": 1536,
-    distance});
-  
-  # 3. Batch insert
-  const documents = pineconeVectors.map(v => ({
-    "id": v.id,
-    "vector": v.values,
-    metadata}));
-  
-  await pb.vectors.batchInsert({
-    documents,
-    skipDuplicates}, { collection});
-}
-"``
+if results is ClientResponseError:
+    match results.status:
+        404:
+            push_error("Collection not found")
+        400:
+            push_error("Invalid request: ", results.data)
+        _:
+            push_error("Error: " + results.to_string())
+```
 
 ## References
 
-- [sqlite-vec Documentation](https:#alexgarcia.xyz/sqlite-vec)
-- [sqlite-vec with rqlite](https:#alexgarcia.xyz/sqlite-vec/rqlite.html)
-- [Vector Implementation Guide](../VECTOR_IMPLEMENTATION.md)
-- [Vector Setup Guide](../VECTOR_SETUP_GUIDE.md)
-
+- [sqlite-vec Documentation](https://alexgarcia.xyz/sqlite-vec)
+- [sqlite-vec with rqlite](https://alexgarcia.xyz/sqlite-vec/rqlite.html)

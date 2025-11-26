@@ -13,12 +13,12 @@ The Backups API provides endpoints for managing application data backups. You ca
 - Restore the application from a backup (restarts the app)
 
 **Backend Endpoints:**
-- "GET /api/backups" - List backups
-- "POST /api/backups" - Create backup
-- "POST /api/backups/upload" - Upload backup
-- "GET /api/backups/{key}" - Download backup
-- "DELETE /api/backups/{key}" - Delete backup
-- "POST /api/backups/{key}/restore" - Restore backup
+- `GET /api/backups` - List backups
+- `POST /api/backups` - Create backup
+- `POST /api/backups/upload` - Upload backup
+- `GET /api/backups/{key}` - Download backup
+- `DELETE /api/backups/{key}` - Delete backup
+- `POST /api/backups/{key}/restore` - Restore backup
 
 **Note**: All Backups API operations require superuser authentication (except download which requires a superuser file token).
 
@@ -26,30 +26,34 @@ The Backups API provides endpoints for managing application data backups. You ca
 
 All Backups API operations require superuser authentication:
 
-``"javascript
-var BosBase = preload(\"res:#gdscript-sdk/src/bosbase.gd\")
+```gdscript
+var BosBase = preload("res://gdscript-sdk/src/bosbase.gd")
 
-var pb = BosBase.new(\"http:#127.0.0.1:8090\")
+var pb = BosBase.new("http://127.0.0.1:8090")
 
 # Authenticate as superuser
-await pb.collection('_superusers').authWithPassword('admin@example.com', 'password');
-"`"
+var auth = await pb.admins().auth_with_password("admin@example.com", "password")
+if auth is ClientResponseError:
+    push_error("Authentication failed: " + auth.to_string())
+    return
+```
 
-**Downloading backups** requires a superuser file token (obtained via "pb.files.getToken()"), but does not require the Authorization header.
+**Downloading backups** requires a superuser file token (obtained via `pb.files.get_token()`), but does not require the Authorization header.
 
 ## Backup File Structure
 
 Each backup file contains:
-- "key": The filename/key of the backup file (string)
-- "size": File size in bytes (number)
-- "modified": ISO 8601 timestamp of when the backup was last modified (string)
+- `key`: The filename/key of the backup file (string)
+- `size`: File size in bytes (number)
+- `modified`: ISO 8601 timestamp of when the backup was last modified (string)
 
-"`"javascript
-interface BackupFileInfo {
-  "key": string;
-  "size": number;
-  modified}
-"`"
+```gdscript
+{
+    "key": "pb_backup_20230519162514.zip",
+    "size": 1048576,
+    "modified": "2023-05-19T16:25:57.542Z"
+}
+```
 
 ## List Backups
 
@@ -57,40 +61,62 @@ Returns a list of all available backup files with their metadata.
 
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Get all backups
-const backups = await pb.backups.getFullList();
+var backups = await pb.backups.get_full_list()
 
-print(backups);
+if backups is ClientResponseError:
+    push_error("Failed to get backups: " + backups.to_string())
+    return
+
+print(backups)
 # [
 #   {
 #     "key": "pb_backup_20230519162514.zip",
-#     "modified": "2023-05-"19T16":"25":57.542Z",
-#     size},
+#     "modified": "2023-05-19T16:25:57.542Z",
+#     "size": 1048576
+#   },
 #   {
 #     "key": "pb_backup_20230518162514.zip",
-#     "modified": "2023-05-"18T16":"25":57.542Z",
-#     size}
+#     "modified": "2023-05-18T16:25:57.542Z",
+#     "size": 2097152
+#   }
 # ]
-"`"
+```
 
 ### Working with Backup Lists
 
-"`"javascript
+```gdscript
 # Sort backups by modification date (newest first)
-const backups = await pb.backups.getFullList();
-backups.sortfunc((a, b):new Date(b.modified) - new Date(a.modified));
+var backups = await pb.backups.get_full_list()
+if backups is ClientResponseError:
+    push_error("Failed to get backups: " + backups.to_string())
+    return
+
+# Sort by modified date (newest first)
+backups.sort_custom(func(a, b):
+    var time_a = Time.get_unix_time_from_datetime_string(a.modified)
+    var time_b = Time.get_unix_time_from_datetime_string(b.modified)
+    return time_b - time_a
+)
 
 # Find the most recent backup
-const mostRecent = backups[0];
+var most_recent = backups[0] if backups.size() > 0 else null
 
 # Filter backups by size (larger than 100MB)
-const largeBackups = backups.filter(backup => backup.size > 100 * 1024 * 1024);
+var large_backups = []
+for backup in backups:
+    if backup.size > 100 * 1024 * 1024:
+        large_backups.append(backup)
 
 # Get total storage used by backups
-const totalSize = backups.reducefunc((sum, backup):sum + backup.size, 0);
-print("Total backup storage: ${(totalSize / 1024 / 1024).toFixed(2)} MB");
-"`"
+var total_size = 0
+for backup in backups:
+    total_size += backup.size
+
+var total_size_mb = float(total_size) / 1024.0 / 1024.0
+print("Total backup storage: %.2f MB" % total_size_mb)
+```
 
 ## Create Backup
 
@@ -98,17 +124,22 @@ Creates a new backup of the application data. The backup process is asynchronous
 
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Create backup with custom name
-await pb.backups.create('my_backup_2024.zip');
+var result = await pb.backups.create("my_backup_2024.zip")
+if result is ClientResponseError:
+    push_error("Failed to create backup: " + result.to_string())
+    return
 
 # Create backup with auto-generated name (pass empty string or let backend generate)
-await pb.backups.create('');
-"`"
+var result2 = await pb.backups.create("")
+if result2 is ClientResponseError:
+    push_error("Failed to create backup: " + result2.to_string())
+```
 
 ### Backup Name Format
 
-Backup names must follow the format: "[a-z0-9_-].zip"
+Backup names must follow the format: `[a-z0-9_-].zip`
 - Only lowercase letters, numbers, underscores, and hyphens
 - Must end with ".zip"
 - Maximum length: 150 characters
@@ -116,28 +147,28 @@ Backup names must follow the format: "[a-z0-9_-].zip"
 
 ### Examples
 
-"`"javascript
+```gdscript
 # Create a named backup
-async function createNamedBackup(name) {
-  try {
-    await pb.backups.create(name);
-    print("Backup "${name}" creation initiated");
-  } catch (error) {
-    if (error.status === 400) {
-      push_error('Invalid backup name or backup already exists');
-    } else {
-      push_error('Failed to create backup:', error);
-    }
-  }
-}
+func create_named_backup(name: String) -> void:
+    var result = await pb.backups.create(name)
+    if result is ClientResponseError:
+        if result.status == 400:
+            push_error("Invalid backup name or backup already exists")
+        else:
+            push_error("Failed to create backup: " + result.to_string())
+        return
+    
+    print("Backup \"%s\" creation initiated" % name)
 
 # Create backup with timestamp
-function createTimestampedBackup() {
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const name = "backup_${timestamp}.zip";
-  return pb.backups.create(name);
-}
-"`"
+func create_timestamped_backup() -> String:
+    var datetime = Time.get_datetime_string_from_system(false)
+    # Replace colons and dots with hyphens
+    datetime = datetime.replace(":", "-").replace(".", "-")
+    var name = "backup_%s.zip" % datetime.substr(0, 19)
+    await pb.backups.create(name)
+    return name
+```
 
 ### Important Notes
 
@@ -152,24 +183,36 @@ Uploads an existing backup ZIP file to the server. This is useful for restoring 
 
 ### Basic Usage
 
-"`"javascript
-# Upload from a File object
-const fileInput = document.querySelector('input[type="file"]');
-const file = fileInput.files[0];
-
-if (file) {
-  await pb.backups.upload({ file});
-}
-
-# Upload from a Blob
-const blob = new Blob([/* your backup data */], { type});
-await pb.backups.upload({ file});
-
-# Upload using FormData
-const formData = new FormData();
-formData.append('file', file);
-await pb.backups.upload(formData);
-"`"
+```gdscript
+# Upload from a file path
+func upload_backup_file(file_path: String) -> void:
+    var file = FileAccess.open(file_path, FileAccess.READ)
+    if file == null:
+        push_error("Failed to open file: " + file_path)
+        return
+    
+    var file_data = file.get_buffer(file.get_length())
+    file.close()
+    
+    # Extract filename from path
+    var filename = file_path.get_file()
+    
+    # Upload the backup
+    var files = {
+        "file": {
+            "filename": filename,
+            "content_type": "application/zip",
+            "data": file_data
+        }
+    }
+    
+    var result = await pb.backups.upload(files)
+    if result is ClientResponseError:
+        push_error("Upload failed: " + result.to_string())
+        return
+    
+    print("Backup uploaded successfully")
+```
 
 ### File Requirements
 
@@ -180,44 +223,35 @@ await pb.backups.upload(formData);
 
 ### Examples
 
-"`"javascript
-# Upload backup from file input
-async function uploadBackupFromInput() {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.zip';
-  
-  input.onchange = async func(e):{
-    const file = e.target.files[0];
-    if (!file) return;
+```gdscript
+# Upload backup from file path
+func upload_backup_from_path(file_path: String) -> void:
+    var file = FileAccess.open(file_path, FileAccess.READ)
+    if file == null:
+        push_error("Failed to open file")
+        return
     
-    try {
-      await pb.backups.upload({ file});
-      print('Backup uploaded successfully');
-    } catch (error) {
-      if (error.status === 400) {
-        push_error('Invalid file or file already exists');
-      } else {
-        push_error('Upload failed:', error);
-      }
+    var file_data = file.get_buffer(file.get_length())
+    file.close()
+    
+    var files = {
+        "file": {
+            "filename": file_path.get_file(),
+            "content_type": "application/zip",
+            "data": file_data
+        }
     }
-  };
-  
-  input.click();
-}
-
-# Upload backup from fetch (e.g., downloading from another server)
-async function uploadBackupFromURL(url) {
-  const response = await fetch(url);
-  const blob = await response.blob();
-  
-  # Create a File object with the original filename
-  const filename = url.split('/').pop() || 'backup.zip';
-  const file = new File([blob], filename, { type});
-  
-  await pb.backups.upload({ file});
-}
-"`"
+    
+    var result = await pb.backups.upload(files)
+    if result is ClientResponseError:
+        if result.status == 400:
+            push_error("Invalid file or file already exists")
+        else:
+            push_error("Upload failed: " + result.to_string())
+        return
+    
+    print("Backup uploaded successfully")
+```
 
 ## Download Backup
 
@@ -225,75 +259,63 @@ Downloads a backup file. Requires a superuser file token for authentication.
 
 ### Basic Usage
 
-"`"javascript
+```gdscript
 # Get file token
-const token = await pb.files.getToken();
+var token = await pb.files.get_token()
+if token is ClientResponseError:
+    push_error("Failed to get token: " + token.to_string())
+    return
 
 # Build download URL
-const url = pb.backups.getDownloadURL(token, 'pb_backup_20230519162514.zip');
+var url = pb.backups.get_download_url(token, "pb_backup_20230519162514.zip")
 
-# Download the file
-const link = document.createElement('a');
-link.href = url;
-link.download = 'pb_backup_20230519162514.zip';
-link.click();
-
-# Or use fetch for more control
-const response = await fetch(url);
-const blob = await response.blob();
-# Process the blob...
-"`"
+# Download the file using HTTPRequest
+var http_request = HTTPRequest.new()
+add_child(http_request)
+http_request.request_completed.connect(_on_backup_downloaded)
+http_request.request(url)
+```
 
 ### Download URL Structure
 
 The download URL format is:
-"`"
+```
 /api/backups/{key}?token={fileToken}
-"`"
+```
 
 ### Examples
 
-"`"javascript
-# Download backup function
-async function downloadBackup(backupKey) {
-  try {
+```gdscript
+func download_backup(backup_key: String, save_path: String) -> void:
     # Get file token (valid for short period)
-    const token = await pb.files.getToken();
+    var token = await pb.files.get_token()
+    if token is ClientResponseError:
+        push_error("Failed to get file token: " + token.to_string())
+        return
     
     # Build download URL
-    const url = pb.backups.getDownloadURL(token, backupKey);
+    var url = pb.backups.get_download_url(token, backup_key)
     
-    # Trigger download
-    window.open(url, '_blank');
-    
-    # Or download programmatically
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = backupKey;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  } catch (error) {
-    push_error('Failed to download backup:', error);
-  }
-}
+    # Download using HTTPRequest
+    var http_request = HTTPRequest.new()
+    add_child(http_request)
+    http_request.set_meta("save_path", save_path)
+    http_request.request_completed.connect(_on_backup_downloaded)
+    http_request.request(url)
 
-# Download and save backup with custom name
-async function downloadBackupAs(backupKey, saveAs) {
-  const token = await pb.files.getToken();
-  const url = pb.backups.getDownloadURL(token, backupKey);
-  
-  const response = await fetch(url);
-  const blob = await response.blob();
-  
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = saveAs;
-  link.click();
-  
-  URL.revokeObjectURL(link.href);
-}
-"`"
+func _on_backup_downloaded(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray) -> void:
+    if response_code == 200:
+        var save_path = get_meta("save_path", "")
+        var file = FileAccess.open(save_path, FileAccess.WRITE)
+        if file:
+            file.store_buffer(body)
+            file.close()
+            print("Backup downloaded successfully to: ", save_path)
+        else:
+            push_error("Failed to write file")
+    else:
+        push_error("Download failed with code: ", response_code)
+```
 
 ## Delete Backup
 
@@ -301,9 +323,11 @@ Deletes a backup file from the server.
 
 ### Basic Usage
 
-"`"javascript
-await pb.backups.delete('pb_backup_20230519162514.zip');
-"`"
+```gdscript
+var result = await pb.backups.delete("pb_backup_20230519162514.zip")
+if result is ClientResponseError:
+    push_error("Failed to delete backup: " + result.to_string())
+```
 
 ### Important Notes
 
@@ -313,46 +337,45 @@ await pb.backups.delete('pb_backup_20230519162514.zip');
 
 ### Examples
 
-"`"javascript
+```gdscript
 # Delete backup with confirmation
-async function deleteBackupWithConfirmation(backupKey) {
-  if (confirm("Are you sure you want to delete ${backupKey}?")) {
-    try {
-      await pb.backups.delete(backupKey);
-      print('Backup deleted successfully');
-    } catch (error) {
-      if (error.status === 400) {
-        push_error('Backup is currently in use and cannot be deleted');
-      } else if (error.status === 404) {
-        push_error('Backup not found');
-      } else {
-        push_error('Failed to delete backup:', error);
-      }
-    }
-  }
-}
+func delete_backup_with_confirmation(backup_key: String) -> void:
+    # In a real application, you would show a confirmation dialog
+    var confirmed = true  # Replace with actual confirmation dialog
+    
+    if not confirmed:
+        return
+    
+    var result = await pb.backups.delete(backup_key)
+    if result is ClientResponseError:
+        if result.status == 400:
+            push_error("Backup is currently in use and cannot be deleted")
+        elif result.status == 404:
+            push_error("Backup not found")
+        else:
+            push_error("Failed to delete backup: " + result.to_string())
+        return
+    
+    print("Backup deleted successfully")
 
 # Delete old backups (older than 30 days)
-async function deleteOldBackups() {
-  const backups = await pb.backups.getFullList();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
-  const oldBackups = backups.filter(backup => {
-    const modified = new Date(backup.modified);
-    return modified < thirtyDaysAgo;
-  });
-  
-  for (const backup of oldBackups) {
-    try {
-      await pb.backups.delete(backup.key);
-      print("Deleted old backup}");
-    } catch (error) {
-      push_error("Failed to delete ${backup.key}:", error);
-    }
-  }
-}
-"`"
+func delete_old_backups() -> void:
+    var backups = await pb.backups.get_full_list()
+    if backups is ClientResponseError:
+        push_error("Failed to get backups: " + backups.to_string())
+        return
+    
+    var thirty_days_ago = Time.get_unix_time_from_system() - (30 * 24 * 60 * 60)
+    
+    for backup in backups:
+        var modified_time = Time.get_unix_time_from_datetime_string(backup.modified)
+        if modified_time < thirty_days_ago:
+            var result = await pb.backups.delete(backup.key)
+            if result is ClientResponseError:
+                push_error("Failed to delete %s: %s" % [backup.key, result.to_string()])
+            else:
+                print("Deleted old backup: ", backup.key)
+```
 
 ## Restore Backup
 
@@ -360,9 +383,11 @@ Restores the application from a backup file. **This operation will restart the a
 
 ### Basic Usage
 
-"`"javascript
-await pb.backups.restore('pb_backup_20230519162514.zip');
-"`"
+```gdscript
+var result = await pb.backups.restore("pb_backup_20230519162514.zip")
+if result is ClientResponseError:
+    push_error("Failed to restore backup: " + result.to_string())
+```
 
 ### Important Warnings
 
@@ -390,292 +415,185 @@ The restore process performs the following steps:
 
 ### Examples
 
-"`"javascript
+```gdscript
 # Restore backup with confirmation
-async function restoreBackupWithConfirmation(backupKey) {
-  const confirmed = confirm(
-    "⚠️ WARNING} and restart the application.\n\n" +
-    "Are you absolutely sure you want to continue?"
-  );
-  
-  if (!confirmed) return;
-  
-  try {
-    await pb.backups.restore(backupKey);
-    print('Restore initiated. Application will restart...');
+func restore_backup_with_confirmation(backup_key: String) -> void:
+    # In a real application, you would show a warning dialog
+    var confirmed = true  # Replace with actual confirmation dialog
     
-    # Optionally wait and reload the page
-    setTimeoutfunc(():{
-      window.location.reload();
-    }, 2000);
-  } catch (error) {
-    if (error.status === 400) {
-      if (error.message.has('another backup/restore')) {
-        push_error('Another backup or restore operation is in progress');
-      } else {
-        push_error('Invalid or missing backup file');
-      }
-    } else {
-      push_error('Failed to restore backup:', error);
-    }
-  }
-}
-"`"
+    if not confirmed:
+        return
+    
+    var result = await pb.backups.restore(backup_key)
+    if result is ClientResponseError:
+        if result.status == 400:
+            if "another backup/restore" in result.to_string():
+                push_error("Another backup or restore operation is in progress")
+            else:
+                push_error("Invalid or missing backup file")
+        else:
+            push_error("Failed to restore backup: " + result.to_string())
+        return
+    
+    print("Restore initiated. Application will restart...")
+```
 
 ## Complete Examples
 
 ### Example 1: Backup Manager Class
 
-"`"javascript
-class BackupManager {
-  constructor(pb) {
-    this.pb = pb;
-  }
+```gdscript
+class_name BackupManager
 
-  async list() {
-    const backups = await this.pb.backups.getFullList();
-    return backups.sortfunc((a, b):new Date(b.modified) - new Date(a.modified));
-  }
+var pb: BosBase
 
-  async create(name = null) {
-    if (!name) {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      name = "backup_${timestamp}.zip";
-    }
-    await this.pb.backups.create(name);
-    return name;
-  }
-
-  async download(key) {
-    const token = await this.pb.files.getToken();
-    return this.pb.backups.getDownloadURL(token, key);
-  }
-
-  async delete(key) {
-    await this.pb.backups.delete(key);
-  }
-
-  async restore(key, confirmMessage = null) {
-    if (confirmMessage && !confirm(confirmMessage)) {
-      return false;
-    }
-    await this.pb.backups.restore(key);
-    return true;
-  }
-
-  async cleanup(daysOld = 30) {
-    const backups = await this.list();
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - daysOld);
+func list() -> Array:
+    var backups = await pb.backups.get_full_list()
+    if backups is ClientResponseError:
+        push_error("Failed to get backups: " + backups.to_string())
+        return []
     
-    const toDelete = backups.filter(b => new Date(b.modified) < cutoff);
+    # Sort by modified date (newest first)
+    backups.sort_custom(func(a, b):
+        var time_a = Time.get_unix_time_from_datetime_string(a.modified)
+        var time_b = Time.get_unix_time_from_datetime_string(b.modified)
+        return time_b - time_a
+    )
     
-    for (const backup of toDelete) {
-      try {
-        await this.delete(backup.key);
-        print("Deleted}");
-      } catch (error) {
-        push_error("Failed to delete ${backup.key}:", error);
-      }
-    }
+    return backups
+
+func create(name: String = "") -> String:
+    if name.is_empty():
+        var datetime = Time.get_datetime_string_from_system(false)
+        datetime = datetime.replace(":", "-").replace(".", "-")
+        name = "backup_%s.zip" % datetime.substr(0, 19)
     
-    return toDelete.length;
-  }
-}
+    await pb.backups.create(name)
+    return name
+
+func download(key: String) -> String:
+    var token = await pb.files.get_token()
+    if token is ClientResponseError:
+        push_error("Failed to get token: " + token.to_string())
+        return ""
+    
+    return pb.backups.get_download_url(token, key)
+
+func delete_backup(key: String) -> void:
+    await pb.backups.delete(key)
+
+func restore_backup(key: String) -> bool:
+    await pb.backups.restore(key)
+    return true
+
+func cleanup(days_old: int = 30) -> int:
+    var backups = await list()
+    var cutoff = Time.get_unix_time_from_system() - (days_old * 24 * 60 * 60)
+    
+    var deleted_count = 0
+    for backup in backups:
+        var modified_time = Time.get_unix_time_from_datetime_string(backup.modified)
+        if modified_time < cutoff:
+            var result = await pb.backups.delete(backup.key)
+            if not result is ClientResponseError:
+                deleted_count += 1
+                print("Deleted: ", backup.key)
+    
+    return deleted_count
 
 # Usage
-const manager = new BackupManager(pb);
-const backups = await manager.list();
-await manager.create('weekly_backup.zip');
-"`"
+var manager = BackupManager.new()
+manager.pb = pb
+var backups = await manager.list()
+await manager.create("weekly_backup.zip")
+```
 
 ### Example 2: Automated Backup Strategy
 
-"`"javascript
-class AutomatedBackup {
-  constructor(pb, strategy = 'daily') {
-    this.pb = pb;
-    this.strategy = strategy; # 'daily', 'weekly', 'monthly'
-    this.maxBackups = 7; # Keep last 7 backups
-  }
+```gdscript
+class_name AutomatedBackup
 
-  async createScheduledBackup() {
-    try {
-      const name = this.generateBackupName();
-      await this.pb.backups.create(name);
-      print("Created backup}");
-      
-      await this.cleanupOldBackups();
-    } catch (error) {
-      push_error('Backup creation failed:', error);
-    }
-  }
+var pb: BosBase
+var strategy: String = "daily"  # 'daily', 'weekly', 'monthly'
+var max_backups: int = 7  # Keep last 7 backups
 
-  generateBackupName() {
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0]; # YYYY-MM-DD
+func create_scheduled_backup() -> void:
+    var name = generate_backup_name()
+    var result = await pb.backups.create(name)
+    if result is ClientResponseError:
+        push_error("Backup creation failed: " + result.to_string())
+        return
     
-    if (this.strategy === 'daily') {
-      return "daily_${dateStr}.zip";
-    } else if (this.strategy === 'weekly') {
-      const week = Math.ceil(now.getDate() / 7);
-      return "weekly_${now.getFullYear()}_W${week}.zip";
-    } else {
-      return "monthly_${now.getFullYear()}_${String(now.getMonth() + 1).padStart(2, '0')}.zip";
-    }
-  }
+    print("Created backup: ", name)
+    await cleanup_old_backups()
 
-  async cleanupOldBackups() {
-    const backups = await this.pb.backups.getFullList();
-    const sorted = backups.sortfunc((a, b):new Date(b.modified) - new Date(a.modified));
+func generate_backup_name() -> String:
+    var now = Time.get_datetime_dict_from_system(false)
     
-    if (sorted.length > this.maxBackups) {
-      const toDelete = sorted.slice(this.maxBackups);
-      for (const backup of toDelete) {
-        try {
-          await this.pb.backups.delete(backup.key);
-          print("Cleaned up old backup}");
-        } catch (error) {
-          push_error("Failed to delete ${backup.key}:", error);
-        }
-      }
-    }
-  }
-}
+    if strategy == "daily":
+        return "daily_%04d-%02d-%02d.zip" % [now.year, now.month, now.day]
+    elif strategy == "weekly":
+        var week = ceil(now.day / 7.0)
+        return "weekly_%04d_W%02d.zip" % [now.year, week]
+    else:  # monthly
+        return "monthly_%04d_%02d.zip" % [now.year, now.month]
 
-# Setup daily automated backups
-const autoBackup = new AutomatedBackup(pb, 'daily');
-
-# Run backup (could be called from a cron job or scheduler)
-setIntervalfunc(():{
-  autoBackup.createScheduledBackup();
-}, 24 * 60 * 60 * 1000); # Every 24 hours
-"`"
-
-### Example 3: Backup Migration Tool
-
-"`"javascript
-class BackupMigrator {
-  constructor(sourcePb, targetPb) {
-    this.sourcePb = sourcePb;
-    this.targetPb = targetPb;
-  }
-
-  async migrateBackup(backupKey) {
-    print("Migrating backup}");
+func cleanup_old_backups() -> void:
+    var backups = await pb.backups.get_full_list()
+    if backups is ClientResponseError:
+        return
     
-    # Step 1: Download from source
-    print('Downloading from source...');
-    const sourceToken = await this.sourcePb.files.getToken();
-    const downloadUrl = this.sourcePb.backups.getDownloadURL(sourceToken, backupKey);
-    const response = await fetch(downloadUrl);
-    const blob = await response.blob();
+    # Sort by modified date (newest first)
+    backups.sort_custom(func(a, b):
+        var time_a = Time.get_unix_time_from_datetime_string(a.modified)
+        var time_b = Time.get_unix_time_from_datetime_string(b.modified)
+        return time_b - time_a
+    )
     
-    # Step 2: Create file object
-    const file = new File([blob], backupKey, { type});
-    
-    # Step 3: Upload to target
-    print('Uploading to target...');
-    await this.targetPb.backups.upload({ file});
-    
-    print('Migration completed');
-  }
-
-  async migrateAllBackups() {
-    const backups = await this.sourcePb.backups.getFullList();
-    
-    for (const backup of backups) {
-      try {
-        await this.migrateBackup(backup.key);
-        print("✓ Migrated}");
-      } catch (error) {
-        push_error("✗ Failed to migrate ${backup.key}:", error);
-      }
-    }
-  }
-}
-
-# Usage
-const migrator = new BackupMigrator(sourcePb, targetPb);
-await migrator.migrateAllBackups();
-"`"
-
-### Example 4: Backup Health Check
-
-"`"javascript
-async function checkBackupHealth() {
-  const backups = await pb.backups.getFullList();
-  
-  if (backups.length === 0) {
-    console.warn('⚠️ No backups found!');
-    return false;
-  }
-  
-  # Check for recent backup (within last 7 days)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  
-  const recentBackups = backups.filter(b => new Date(b.modified) > sevenDaysAgo);
-  
-  if (recentBackups.length === 0) {
-    console.warn('⚠️ No backups found in the last 7 days');
-  } else {
-    print("✓ Found ${recentBackups.length} recent backup(s)");
-  }
-  
-  # Check total storage
-  const totalSize = backups.reducefunc((sum, b):sum + b.size, 0);
-  const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
-  print("Total backup storage: ${totalSizeMB} MB");
-  
-  # Check largest backup
-  const largest = backups.reducefunc((max, b):b.size > max.size ? b : max, backups[0]);
-  print("Largest backup: ${largest.key} (${(largest.size / 1024 / 1024).toFixed(2)} MB)");
-  
-  return true;
-}
-"`"
+    if backups.size() > max_backups:
+        var to_delete = backups.slice(max_backups)
+        for backup in to_delete:
+            await pb.backups.delete(backup.key)
+            print("Cleaned up old backup: ", backup.key)
+```
 
 ## Error Handling
 
-"`"javascript
-# Handle common backup errors
-async function handleBackupError(operation, ...args) {
-  try {
-    await pb.backups[operation](...args);
-  } catch (error) {
-    switch (error.status) {
-      case 400} else if (error.message.has('already exists')) {
-          push_error('Backup with this name already exists');
-        } else {
-          push_error('Invalid request:', error.message);
-        }
-        break;
-      
-      case 401:
-        push_error('Not authenticated');
-        break;
-      
-      case 403:
-        push_error('Not a superuser');
-        break;
-      
-      case 404:
-        push_error('Backup not found');
-        break;
-      
-      default:
-        push_error('Unexpected error:', error);
-    }
-    throw error;
-  }
-}
-"`"
+```gdscript
+func handle_backup_error(operation: String, args: Array) -> void:
+    var result
+    match operation:
+        "create":
+            result = await pb.backups.create(args[0])
+        "delete":
+            result = await pb.backups.delete(args[0])
+        "restore":
+            result = await pb.backups.restore(args[0])
+        _:
+            push_error("Unknown operation: " + operation)
+            return
+    
+    if result is ClientResponseError:
+        match result.status:
+            400:
+                if "already exists" in result.to_string():
+                    push_error("Backup with this name already exists")
+                else:
+                    push_error("Invalid request: " + result.to_string())
+            401:
+                push_error("Not authenticated")
+            403:
+                push_error("Not a superuser")
+            404:
+                push_error("Backup not found")
+            _:
+                push_error("Unexpected error: " + result.to_string())
+```
 
 ## Best Practices
 
 1. **Regular Backups**: Create backups regularly (daily, weekly, or based on your needs)
-2. **Naming Convention**: Use clear, consistent naming (e.g., "backup_YYYY-MM-DD.zip`)
+2. **Naming Convention**: Use clear, consistent naming (e.g., `backup_YYYY-MM-DD.zip`)
 3. **Backup Rotation**: Implement cleanup to remove old backups and prevent storage issues
 4. **Test Restores**: Periodically test restoring backups to ensure they work
 5. **Off-site Storage**: Download and store backups in a separate location
