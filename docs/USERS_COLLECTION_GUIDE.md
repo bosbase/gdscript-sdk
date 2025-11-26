@@ -37,6 +37,10 @@ var users_collection = await pb.collections.get_one("users")
 # or by ID
 var users_collection = await pb.collections.get_one("_pb_users_auth_")
 
+if users_collection is ClientResponseError:
+    push_error("Failed to get users collection: " + users_collection.to_string())
+    return
+
 print("Collection ID: ", users_collection.id)
 print("Collection Name: ", users_collection.name)
 print("Collection Type: ", users_collection.type)
@@ -477,17 +481,29 @@ var my_posts = await pb.collection("posts").get_list(1, 20, {
     "filter": "author = @request.auth.id"
 })
 
+if my_posts is ClientResponseError:
+    push_error("Failed to get posts: " + my_posts.to_string())
+    return
+
 # Get posts by verified users only
 var verified_posts = await pb.collection("posts").get_list(1, 20, {
     "filter": "author.verified = true",
     "expand": "author"
 })
 
+if verified_posts is ClientResponseError:
+    push_error("Failed to get verified posts: " + verified_posts.to_string())
+    return
+
 # Get posts where author name contains "John"
 var posts = await pb.collection("posts").get_list(1, 20, {
     "filter": "author.name ~ \"John\"",
     "expand": "author"
 })
+
+if posts is ClientResponseError:
+    push_error("Failed to get posts: " + posts.to_string())
+    return
 ```
 
 ---
@@ -536,6 +552,10 @@ var post = await pb.collection("posts").create({
     "title": "My First Post",
     "author": pb.auth_store.record.id,  # Current user's ID
 })
+
+if post is ClientResponseError:
+    push_error("Failed to create post: " + post.to_string())
+    return
 ```
 
 ### Querying with User Relations
@@ -545,6 +565,10 @@ var post = await pb.collection("posts").create({
 var posts = await pb.collection("posts").get_list(1, 20, {
     "expand": "author",  # Expand the author relation
 })
+
+if posts is ClientResponseError:
+    push_error("Failed to get posts: " + posts.to_string())
+    return
 
 for post in posts.items:
     print("Post: ", post.title)
@@ -557,18 +581,30 @@ var user_posts = await pb.collection("posts").get_list(1, 20, {
     "filter": "author = \"USER_ID\"",
     "expand": "author"
 })
+
+if user_posts is ClientResponseError:
+    push_error("Failed to get user posts: " + user_posts.to_string())
+    return
 ```
 
 ### Updating User Profile
 
 ```gdscript
 # Users can update their own profile
-await pb.collection("users").update(pb.auth_store.record.id, {
+var result = await pb.collection("users").update(pb.auth_store.record.id, {
     "name": "Updated Name"
 })
 
+if result is ClientResponseError:
+    push_error("Failed to update profile: " + result.to_string())
+    return
+
 # Update with avatar
 var file = FileAccess.open("res://new_avatar.jpg", FileAccess.READ)
+if file == null:
+    push_error("Failed to open avatar file")
+    return
+
 var file_data = file.get_buffer(file.get_length())
 file.close()
 
@@ -580,9 +616,12 @@ var files = {
     }
 }
 
-await pb.collection("users").update(pb.auth_store.record.id, {
+var update_result = await pb.collection("users").update(pb.auth_store.record.id, {
     "name": "New Name"
 }, {}, files)
+
+if update_result is ClientResponseError:
+    push_error("Failed to update profile with avatar: " + update_result.to_string())
 ```
 
 ---
@@ -666,13 +705,21 @@ func user_post_management() -> void:
         "sort": "-created"
     })
     
+    if my_posts is ClientResponseError:
+        push_error("Failed to get posts: " + my_posts.to_string())
+        return
+    
     print("My posts: ", my_posts.items.size())
     
     # 4. User updates their post
-    await pb.collection("posts").update(post.id, {
+    var update_result = await pb.collection("posts").update(post.id, {
         "title": "Updated Title",
         "status": "published",
     })
+    
+    if update_result is ClientResponseError:
+        push_error("Failed to update post: " + update_result.to_string())
+        return
     
     # 5. User views their post with author info
     var updated_post = await pb.collection("posts").get_one(post.id, {
@@ -687,7 +734,11 @@ func user_post_management() -> void:
     print("Post author: ", author.get("name", ""))
     
     # 6. User deletes their post
-    await pb.collection("posts").delete(post.id)
+    var delete_result = await pb.collection("posts").delete(post.id)
+    
+    if delete_result is ClientResponseError:
+        push_error("Failed to delete post: " + delete_result.to_string())
+        return
     
     print("Post deleted")
 ```
@@ -782,11 +833,15 @@ func password_reset_flow() -> void:
     # (Token is in the URL query parameter)
     
     # 3. User confirms password reset with token
-    await pb.collection("users").confirm_password_reset(
+    var reset_result = await pb.collection("users").confirm_password_reset(
         "RESET_TOKEN_FROM_EMAIL",
         "newpassword123",
         "newpassword123"  # passwordConfirm
     )
+    
+    if reset_result is ClientResponseError:
+        push_error("Failed to reset password: " + reset_result.to_string())
+        return
     
     print("Password reset successful")
     
