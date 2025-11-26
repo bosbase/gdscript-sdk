@@ -1,6 +1,6 @@
 # Cache API - GDScript SDK
 
-BosBase caches combine in-memory [FreeCache](https://github.com/coocood/freecache) storage with persistent database copies. Each cache instance is safe to use in single-node or multi-node (cluster) mode: nodes read from FreeCache first, fall back to the database if an item is missing or expired, and then reload FreeCache automatically.
+BosBase caches combine in-memory storage with persistent database copies. Each cache instance is safe to use in single-node or multi-node (cluster) mode: nodes read from FreeCache first, fall back to the database if an item is missing or expired, and then reload FreeCache automatically.
 
 The GDScript SDK exposes the cache endpoints through `pb.caches`. Typical use cases include:
 
