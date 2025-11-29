@@ -25,7 +25,7 @@ func _ready() -> void:
 
 Key points
 ----------
-- Services: collections, records, files, realtime (SSE), pubsub (websocket), settings, backups, crons, vectors, LLM documents, LangChaingo, cache, GraphQL, batch API and health/log helpers.
+- Services: collections, records, files, realtime (SSE), pubsub (websocket), settings, backups, crons, vectors, LLM documents, LangChaingo, cache, GraphQL, SQL, batch API and health/log helpers.
 - Auth store: in-memory with optional disk persistence (`AuthStore` stores `token` and `model`).
 - Errors: methods return a `ClientResponseError` instance when something goes wrong. Check `result is ClientResponseError` before using the payload.
 - Files: pass `files` as a `Dictionary` or `Array` of `{name, filename, content_type, data}`; the body is sent as multipart with `@jsonPayload`.

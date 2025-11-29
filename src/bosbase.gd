@@ -33,6 +33,7 @@ var llm_documents
 var langchaingo
 var caches
 var graphql
+var sql
 
 var _record_services: Dictionary = {}
 
@@ -65,6 +66,7 @@ func _init(
 	var LangChaingoService = preload("res://gdscript-sdk/src/services/langchaingo_service.gd")
 	var CacheService = preload("res://gdscript-sdk/src/services/cache_service.gd")
 	var GraphQLService = preload("res://gdscript-sdk/src/services/graphql_service.gd")
+	var SQLService = preload("res://gdscript-sdk/src/services/sql_service.gd")
 
 	collections = CollectionService.new(self)
 	files = FileService.new(self)
@@ -80,6 +82,7 @@ func _init(
 	langchaingo = LangChaingoService.new(self)
 	caches = CacheService.new(self)
 	graphql = GraphQLService.new(self)
+	sql = SQLService.new(self)
 
 func admins() -> Variant:
 	return collection("_superusers")

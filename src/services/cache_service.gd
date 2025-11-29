@@ -65,7 +65,16 @@ func renew_entry(
 	var payload := body.duplicate()
 	if ttl_seconds != null:
 		payload["ttlSeconds"] = ttl_seconds
-	return await client.send("/api/cache/%s/entries/%s" % [cache, key], "PATCH", headers, query, payload)
+	return await client.send(
+		"/api/cache/%s/entries/%s" % [
+			BosbaseUtils.encode_path_segment(cache),
+			BosbaseUtils.encode_path_segment(key),
+		],
+		"PATCH",
+		headers,
+		query,
+		payload
+	)
 
 func delete_entry(cache: String, key: String, query: Dictionary = {}, headers: Dictionary = {}) -> Variant:
 	return await client.send("/api/cache/%s/entries/%s" % [BosbaseUtils.encode_path_segment(cache), BosbaseUtils.encode_path_segment(key)], "DELETE", headers, query)
