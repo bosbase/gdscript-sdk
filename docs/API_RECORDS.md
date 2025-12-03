@@ -723,3 +723,4 @@ if record_result is ClientResponseError:
 - [Authentication](./AUTHENTICATION.md) - Detailed authentication guide
 - [Files](./FILES.md) - File uploads and handling
 
+
